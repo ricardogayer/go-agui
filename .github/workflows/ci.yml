@@ -1,0 +1,25 @@
+# CI mínimo: os mesmos alvos do Makefile que se roda localmente, nos quatro
+# módulos do go.work. O que passa aqui é o que passa na máquina de quem
+# contribui — sem etapa que só exista no CI.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache: true
+      - name: Build
+        run: make build
+      - name: Lint (gofmt + vet)
+        run: make lint
+      - name: Test
+        run: make test
