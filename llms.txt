@@ -1,0 +1,312 @@
+# go-agui
+
+> Biblioteca Go que implementa o protocolo AG-UI (https://docs.ag-ui.com) sobre SSE, com o laço modelo↔tools construído no CloudWeGo Eino. Você escreve o agente (prompt, tools, estado); a biblioteca cuida do contrato: `POST /` recebendo `RunAgentInput`, resposta `text/event-stream` com a sequência de eventos AG-UI, healthcheck, cancelamento e desligamento gracioso. Qualquer runtime que fale AG-UI (ex.: CopilotKit via `HttpAgent`) conversa com o servidor sem saber que há Go do outro lado.
+
+Fatos essenciais:
+
+- Módulos: núcleo `github.com/ricardogayer/go-agui` (agente, handler, emitter, estado, tools); `.../model` (OpenAI e Ollama via eino-ext); `.../ginx` (adaptador Gin); `.../aguitest` (FakeModel e asserções); `.../a2ui` (operações A2UI v0.9).
+- Requisitos: Go 1.24.4+ (núcleo e model); Go 1.25+ (ginx e exemplos).
+- O chat model é um `model.ToolCallingChatModel` do Eino; uma tool é um `tool.BaseTool` do Eino — qualquer tool do ecossistema eino-ext (MCP etc.) entra sem adaptador.
+- Um run emite, na ordem: `RUN_STARTED`, `STEP_STARTED`, blocos de texto (`TEXT_MESSAGE_START/_CONTENT/_END`) e de tool call (`TOOL_CALL_START/_ARGS/_END/_RESULT`), `STEP_FINISHED`, `STATE_SNAPSHOT`, `MESSAGES_SNAPSHOT` e exatamente UM evento terminal (`RUN_FINISHED` ou `RUN_ERROR`).
+- Não há estado de sessão no servidor (o AG-UI reenvia o histórico inteiro a cada requisição) — escala horizontal é livre.
+- `*Agent` é seguro para uso concorrente e não é mutado por requisição.
+
+## Menor servidor possível
+
+```go
+package main
+
+import (
+	"context"
+	"log"
+
+	agui "github.com/ricardogayer/go-agui"
+	"github.com/ricardogayer/go-agui/ginx"
+	"github.com/ricardogayer/go-agui/model"
+)
+
+func main() {
+	ctx := context.Background()
+	m := agui.Must(model.FromEnv(ctx)) // lê MODEL_PROVIDER, MODEL, OPENAI_API_KEY...
+	ag := agui.Must(agui.New(ctx, m, agui.WithSystemPrompt("Você é um assistente útil.")))
+	log.Fatal(ginx.ListenAndServe(ctx, agui.Addr(8000), ag, "meu-agente"))
+}
+```
+
+Sem Gin (net/http puro): `log.Fatal(agui.ListenAndServe(ctx, agui.Addr(8000), agui.Mux(ag, "meu-agente")))`.
+`agui.Must(v, err)` desembrulha e entra em pânico se `err != nil` — use só na inicialização. `agui.Addr(porta)` lê `HOST`/`PORT` com fallback `0.0.0.0:<porta>`.
+
+## Criando o agente — agui.New e opções
+
+`agui.New(ctx, m model.ToolCallingChatModel, opts ...Option) (*Agent, error)` — recebe `ctx` porque os schemas das tools são resolvidos na construção (`Info()` pode fazer I/O, como uma tool MCP): falha na subida do processo, não no meio de uma conversa. O `*Agent` já é um `agui.Runner`.
+
+Opções:
+
+- `WithSystemPrompt(s)` — prompt de sistema; só é injetado se o cliente não mandou um `system` próprio.
+- `WithTools(...)` — registra tools; chamadas sucessivas acumulam.
+- `WithMaxIterations(n)` — teto de voltas do laço por run (padrão `DefaultMaxIterations` = 8, teto absoluto 64).
+- `WithLogger(l *slog.Logger)` — padrão `slog.Default()`.
+- `WithContextFormatter(f)` — troca a formatação do `context` da requisição (padrão `AppContextBlock`).
+- `NoContext()` — desliga o repasse do `context` da requisição ao modelo. NÃO use num agente que renderiza A2UI (o catálogo de componentes chega por esse `context`).
+- `WithMessagePreprocessor(f)` — última transformação nas mensagens antes de cada chamada ao modelo (truncar histórico, few-shots, redigir dados sensíveis).
+- `WithState(f StateFactory)` — troca a construção do estado compartilhado do run.
+- `WithHooks(h Hooks)` — observadores do run.
+- `WithStepNames(modelo, tools)` — rótulos dos `STEP_STARTED`/`STEP_FINISHED` (padrões `"model"` e `"tools"`).
+
+## Chat model — módulo model
+
+```go
+m, err := model.FromEnv(ctx) // lê variáveis de ambiente
+m, err := model.New(ctx, model.Config{
+	Provider: model.ProviderOpenAI, // ou model.ProviderOllama
+	Model:    "gpt-4o-mini",
+	APIKey:   os.Getenv("OPENAI_API_KEY"),
+})
+```
+
+O módulo é opcional: `agui.New` aceita qualquer `model.ToolCallingChatModel` do Eino. `Config.Validate` recusa na subida o que só falharia na primeira requisição.
+
+Variáveis de ambiente (lidas por `model.ConfigFromEnv` e `agui.Addr`): `MODEL_PROVIDER` (`openai` padrão, ou `ollama`), `MODEL` (id do modelo), `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_REASONING_EFFORT` (`none` é OBRIGATÓRIO nos modelos de raciocínio da OpenAI — eles recusam function tools com o esforço padrão), `OLLAMA_BASE_URL` (padrão `http://localhost:11434`), `HOST`/`PORT`.
+
+## Tools
+
+Uma tool é um `tool.BaseTool` do Eino. A interface decide quem executa:
+
+- Implementa `Info` + `InvokableRun` → o SERVIDOR executa; o resultado volta ao modelo e o laço continua.
+- Implementa só `Info` → tool de CLIENTE: o schema é anunciado ao modelo, mas ao ver a chamada o run termina e o controle volta ao frontend (mesmo caminho das tools em `RunAgentInput.tools`, registradas por `useFrontendTool`/`useComponent` no React).
+
+### Construtores
+
+```go
+// Schema inferido dos tipos (tags json + jsonschema). Sem $ref/$defs/$schema.
+type BuscaVoos struct {
+	Origem  string `json:"origem"  jsonschema:"required,description=Código IATA de origem"`
+	Destino string `json:"destino" jsonschema:"required,description=Código IATA de destino"`
+}
+agui.NewTool("buscar_voos", "Busca voos entre dois aeroportos.",
+	func(ctx context.Context, in BuscaVoos) ([]Voo, error) { return buscar(in.Origem, in.Destino), nil })
+
+// Schema escrito à mão (params é json.RawMessage de propósito, para o compilador pegar troca de ordem).
+agui.NewRawTool("display_flights", descricao, json.RawMessage(schemaJSON),
+	func(ctx context.Context, args string) (string, error) { ... })
+
+// A partir de um *schema.ToolInfo do Eino montado programaticamente.
+agui.NewToolFromInfo(info, fn)
+
+// Tool de cliente: anuncia o schema, não executa; o run termina e o controle volta ao frontend.
+agui.NewClientTool("mostrar_grafico", "Renderiza um gráfico na tela.",
+	json.RawMessage(`{"type":"object","properties":{"titulo":{"type":"string"}}}`))
+```
+
+Os construtores NÃO devolvem `error`: o erro fica retido na tool e é colhido por `agui.New`, agregado e nomeado (ex.: `tool "b": schema de parâmetros inválido: ...`). Isso permite `WithTools(NewTool(...), NewRawTool(...))` sem cerimônia.
+
+### Dentro de uma tool — RunContext
+
+A função recebe só `(ctx, entrada)`; o resto do run chega pelo contexto:
+
+```go
+func trocarTema(ctx context.Context, in TemaArgs) (string, error) {
+	rc := agui.MustFromContext(ctx)
+	rc.State().Set("/tema", in.Tema) // aplica E emite o STATE_DELTA
+	return `{"ok":true}`, nil
+}
+```
+
+`*RunContext`: `Emitter()` (emitir eventos no fio — nunca terminais, quem encerra o run é o laço), `State()`, `Input()` (o `RunAgentInput` cru: `forwardedProps`, `threadId`, contexto), `Logger()` (já anotado com thread e run), `ThreadID()`/`RunID()`, `ToolCallID()`/`ToolName()`, `Resume()`/`ResumeFor(id)`. Use `agui.FromContext(ctx) (*RunContext, bool)` quando a tool precisar ser chamável fora de um run (testes).
+
+## Estado compartilhado — State
+
+Documento JSON livre espelhado no `agent.state` do cliente. Contrato: a operação aplicada localmente é exatamente a que vai no fio (o cliente que aplica `STATE_SNAPSHOT` + `STATE_DELTA`s reconstrói o documento do servidor). Seguro para uso concorrente.
+
+```go
+st.Set("/todos/0/feito", true) // aplica + emite (usa `add` da RFC 6902: cria ou substitui)
+st.Remove("/rascunho")
+st.Apply(ops)                  // lote atômico: ou tudo, ou nada
+v, ok := st.Get("/tema")       // JSON Pointer (RFC 6901)
+snap := st.Snapshot()          // cópia profunda
+```
+
+Caminho cujo PAI não existe é erro — crie o pai antes. Para semear o estado:
+
+```go
+agui.WithState(func(ctx context.Context, in *agui.RunAgentInput) (*agui.State, error) {
+	s := agui.NewState(map[string]any{"todos": []any{}})
+	return s, s.Apply(seedDoCliente(in.State))
+})
+```
+
+O padrão semeia com `RunAgentInput.state` e devolve intacto — o estado do cliente não regride por passar pelo agente.
+
+## Human-in-the-loop — Interrupt / Resume
+
+Uma tool pausa o run devolvendo `agui.Interrupt`; o cliente responde em `RunAgentInput.resume`; na passagem seguinte a tool recupera a resposta:
+
+```go
+func aprovarCompra(ctx context.Context, in Compra) (string, error) {
+	rc := agui.MustFromContext(ctx)
+	if payload, ok := rc.ResumeFor(rc.ToolCallID()); ok {
+		return processar(in, payload) // o humano respondeu
+	}
+	return "", agui.Interrupt(agui.InterruptRequest{
+		Reason:  "needs_approval",
+		Message: "Confirmar a compra?",
+	})
+}
+```
+
+`ResumeFor` só considera entradas com status `resolved` — uma decisão `cancelled` não é valor de retomada (use `Resume()` para inspecionar cancelamentos). Não há store no servidor, de propósito: o AG-UI reenvia o histórico inteiro, então a chamada pendente chega na conversa; um store em memória quebraria com mais de uma réplica.
+
+## Renderizando UI — subpacote a2ui
+
+Monta operações A2UI v0.9 que uma tool de backend devolve como resultado (conteúdo do `TOOL_CALL_RESULT`); o `@copilotkit/a2ui-renderer` do frontend detecta a chave `a2ui_operations` e renderiza os componentes do catálogo React da aplicação.
+
+```go
+import "github.com/ricardogayer/go-agui/a2ui"
+
+func mostrarVoos(ctx context.Context, in BuscaVoos) (string, error) {
+	voos := buscar(in.Origem, in.Destino)
+	return a2ui.Render(
+		a2ui.CreateSurface("voos", "copilotkit://app-dashboard-catalog"),
+		a2ui.UpdateComponents("voos", []a2ui.Component{
+			{"id": "root", "component": "Card", "children": []any{"lista"}},
+			{"id": "lista", "component": "FlightList", "itemsPath": "/flights"},
+		}),
+		a2ui.UpdateDataModel("voos", "/", map[string]any{"flights": voos}),
+	)
+}
+```
+
+- `CreateSurface(surfaceID, catalogID)` — `catalogID` vazio cai em `a2ui.BasicCatalogID`.
+- `UpdateComponents(surfaceID, comps)` — lista nil sai como `[]`, nunca `null` (um null derrubaria o renderer).
+- `UpdateDataModel(surfaceID, path, v)` — `path` vazio vira `"/"`.
+- `Render(ops...)` — embrulha em `{"a2ui_operations":[...]}` e serializa; devolve erro em vez de engolir.
+- Cada operação carrega `version: "v0.9"` (`a2ui.Version`). A chave do envelope é `a2ui.OperationsKey` — errá-la faz o resultado aparecer como texto cru no chat.
+- Não confundir com `generate_a2ui` (schema dinâmico): essa é uma tool de FRONTEND injetada pelo A2UIMiddleware do runtime, chega em `RunAgentInput.tools` e nunca é executada no servidor. O pacote `a2ui` é para schema FIXO, desenhado pelo servidor.
+- O catálogo de componentes chega pelo `context` da requisição — por isso `NoContext()` quebra A2UI ("Unknown component").
+
+## Observabilidade — WithHooks
+
+```go
+agui.WithHooks(agui.Hooks{
+	OnRunStart:   func(ctx context.Context, in *agui.RunAgentInput) { ... },
+	OnModelTurn:  func(ctx context.Context, t agui.TurnInfo) { ... },  // t.Iteration, t.Usage.TotalTokens, t.Duration
+	OnToolResult: func(ctx context.Context, t agui.ToolRunInfo) { ... }, // nome, args, duração, erro, interrompida
+	OnRunEnd:     func(ctx context.Context, r agui.RunInfo) { ... },   // iterações, duração, "success"|"interrupt"|"error"
+})
+```
+
+Todos os campos são opcionais.
+
+## Servidor
+
+### Nível 0 — tudo pronto (ginx)
+
+```go
+ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+defer stop()
+log.Fatal(ginx.ListenAndServe(ctx, agui.Addr(8000), ag, "meu-agente",
+	ginx.WithCORS(), // desligado por padrão (o CopilotKit chama server-side)
+	ginx.WithHandlerOptions(
+		agui.WithHandlerLogger(logger),
+		agui.WithShutdownContext(ctx),   // SIGTERM cancela os streams em voo
+		agui.WithMaxBodyBytes(8<<20),    // 413 acima de 8 MiB (padrão: sem limite)
+		agui.WithOnDropped(func(ctx context.Context, ev agui.Event, err error) { ... }),
+	),
+	ginx.WithServeOptions(
+		agui.WithServeLogger(logger),
+		agui.WithShutdownTimeout(30*time.Second), // padrão 10s
+	),
+))
+```
+
+Monta: `gin.Engine` (release) + `Recovery` + `POST /` → SSE + `GET /health` + `NormalizeHealthPath` (`//health` → `/health`) + `http.Server` SEM `WriteTimeout` e com `ReadHeaderTimeout=15s` + shutdown gracioso no cancelamento do ctx. Rotas: `POST /` (RunAgentInput → text/event-stream), `GET /health` → `{"status":"ok","agent":{"name":...}}`.
+
+### Nível 1 — roteador existente
+
+```go
+// Gin:
+ginx.Register(r, ag, "meu-agente")                       // rotas na raiz
+ginx.Register(r.Group("/agents/viagens"), agV, "viagens") // com prefixo (POST fica com barra final)
+r.POST("/chat", ginx.Handler(ag))                        // só o handler (= gin.WrapH(agui.Handler(ag)))
+r.GET("/chat/health", ginx.Health("meu-agente"))
+eng := ginx.Engine(ag, "meu-agente", opts...)            // *gin.Engine pronto
+
+// net/http / chi / echo:
+agui.Mux(ag, "meu-agente")     // http.Handler com POST /, GET /health e //health
+agui.Handler(ag, opts...)      // só o handler SSE
+agui.Health("meu-agente")      // só o healthcheck
+agui.NormalizeHealthPath(next) // wrapper //health → /health (não pode ser rota no Gin)
+agui.ListenAndServe(ctx, addr, h, opts...) // servidor com shutdown gracioso
+```
+
+### Nível 2 — laço próprio
+
+`agui.Runner` é uma interface de um método: `Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error`. `agui.RunnerFunc` adapta uma função. O `RUN_STARTED` já foi emitido quando `Run` é chamado; devolver erro basta — o handler emite `RUN_ERROR` se nenhum terminal saiu.
+
+### Nível 3 — primitivas
+
+`Emitter` (escritas serializadas, seguro entre goroutines), `Conversation` (por run, não compartilhar), `ClassifyToolCalls(calls, clientNames)` (separa chamadas de servidor e de cliente), `RepairToolPairs(msgs)` (conserta o histórico fora de ordem que o cliente reenvia — a OpenAI recusa com 400 sem isso; não toca no `MESSAGES_SNAPSHOT`), `AppContextBlock(entries)`, `ClientToolNames(tools)`, `ParseJSONSchema(raw)`.
+
+### Regras de produção
+
+- NÃO configure `WriteTimeout` — cortaria o SSE no meio da conversa.
+- Middleware que embrulha o `ResponseWriter` (gzip, cache, gravação de corpo, `gin.Logger` com writer customizado) quebra o streaming. Autenticação, rate limit, tracing e recovery são seguros.
+- Atrás de proxy: o handler já envia `X-Accel-Buffering: no` (NGINX); em Cloudflare/ALB/Envoy, desligue o buffering de resposta na rota do agente.
+- Healthcheck em container distroless: o próprio binário vira sonda com `agui.CheckHealth("http://127.0.0.1:8000/health")` atrás de uma flag `-healthcheck` (a biblioteca não registra flags).
+
+## Testes — pacote aguitest
+
+`FakeModel` implementa `model.ToolCallingChatModel` em processo, sem HTTP falso:
+
+```go
+m := aguitest.NewFakeModel(
+	aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{{ID: "c1", Name: "somar", Args: `{"a":2,"b":3}`}}},
+	aguitest.Turn{Text: "São 5."},
+)
+ag := agui.Must(agui.New(ctx, m, agui.WithTools(toolSoma())))
+
+evs := aguitest.Run(t, ag, aguitest.Input("quanto é 2+3?"))
+aguitest.RequireBalanced(t, evs) // todo START tem END, sem sobreposição, UM terminal no fim
+aguitest.RequireContains(t, evs, agui.EventToolCallResult, agui.EventRunFinished)
+```
+
+Também: `RequireSequence` (sequência exata), `Collect`/`ParseSSE` (exercitar um `http.Handler`), `Primeiro`/`Todos`/`Tipos`/`TextoConcatenado`, `FakeModel.Calls()` (mensagens que o modelo recebeu) e `BoundTools()` (tools ligadas) — para afirmar sobre o que o agente MONTOU, não só o que emitiu.
+
+## Armadilhas do protocolo que a biblioteca já resolve
+
+- Um evento inválido derruba o stream inteiro no `@ag-ui/client` → a biblioteca descarta o evento recusado (`ErrEventDropped`) e mantém o stream vivo.
+- `toolCallId` vazio é recusado pelo SDK → fragmentos de argumento ficam em buffer até id e nome chegarem.
+- Não emitir `TOOL_CALL_*` duas vezes.
+- `MESSAGES_SNAPSHOT` é obrigatório e os ids das mensagens precisam ser estáveis (a `Conversation` preserva o id AG-UI original).
+- Histórico reenviado pelo cliente com respostas de tool fora de posição → `RepairToolPairs` conserta o que vai ao modelo.
+- O `context` da requisição precisa chegar ao modelo (catálogo de componentes A2UI).
+- `X-Accel-Buffering: no` e ausência de `WriteTimeout` para o SSE fluir.
+- Cliente desconectado: a primeira escrita que falha cancela o contexto do run e aborta o stream do modelo em voo.
+
+## Instalação e exemplos
+
+```bash
+go get github.com/ricardogayer/go-agui
+go get github.com/ricardogayer/go-agui/model  # opcional
+go get github.com/ricardogayer/go-agui/ginx   # opcional
+```
+
+Smoke test sem frontend:
+
+```bash
+export MODEL_PROVIDER=openai MODEL=gpt-4o-mini OPENAI_API_KEY=sk-...
+go run ./examples/quickstart
+curl -N -X POST localhost:8000 -H 'content-type: application/json' \
+  -d '{"threadId":"t1","runId":"r1","messages":[{"id":"m1","role":"user","content":"oi"}]}'
+```
+
+- examples/quickstart: o menor agente possível (chat com streaming, sem tools).
+- examples/backend-tools: schema inferido, estado compartilhado, tool de cliente declarada no servidor e hooks de uso de tokens.
+
+## Optional
+
+- README completo: https://github.com/ricardogayer/go-agui/blob/main/README.md
+- Protocolo AG-UI: https://docs.ag-ui.com
+- CloudWeGo Eino: https://github.com/cloudwego/eino
+- CopilotKit: https://copilotkit.ai
+- Licença: MIT
