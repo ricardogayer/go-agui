@@ -4,7 +4,7 @@
 
 Fatos essenciais:
 
-- Versão atual: v0.2.0 (tags `v0.2.0`, `model/v0.2.0`, `ginx/v0.2.0`).
+- Versão atual: v0.2.1 (tags `v0.2.1`, `model/v0.2.1`, `ginx/v0.2.1`).
 - Módulos publicados: núcleo `github.com/ricardogayer/go-agui` (agente, handler, emitter, estado, tools); `.../model` (OpenAI e Ollama via eino-ext); `.../ginx` (adaptador Gin). Pacotes dentro do módulo núcleo (não são módulos separados): `.../aguitest` (FakeModel e asserções) e `.../a2ui` (operações A2UI v0.9).
 - Requisitos: Go 1.24.4+ (núcleo e model); Go 1.25+ (ginx e exemplos).
 - O chat model é um `model.ToolCallingChatModel` do Eino; uma tool é um `tool.BaseTool` do Eino — qualquer tool do ecossistema eino-ext (MCP etc.) entra sem adaptador.
@@ -287,9 +287,9 @@ Também: `RequireSequence` (sequência exata), `Collect` (exercita um `http.Hand
 ## Instalação e exemplos
 
 ```bash
-go get github.com/ricardogayer/go-agui@v0.2.0
-go get github.com/ricardogayer/go-agui/model@v0.2.0  # opcional
-go get github.com/ricardogayer/go-agui/ginx@v0.2.0   # opcional
+go get github.com/ricardogayer/go-agui@v0.2.1
+go get github.com/ricardogayer/go-agui/model@v0.2.1  # opcional
+go get github.com/ricardogayer/go-agui/ginx@v0.2.1   # opcional
 ```
 
 Smoke test sem frontend:

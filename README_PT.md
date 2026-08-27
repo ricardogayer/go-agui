@@ -86,9 +86,9 @@ exemplos.
 ## Instalação
 
 ```bash
-go get github.com/ricardogayer/go-agui@v0.2.0
-go get github.com/ricardogayer/go-agui/model@v0.2.0   # provedores de modelo (opcional)
-go get github.com/ricardogayer/go-agui/ginx@v0.2.0    # adaptador Gin (opcional)
+go get github.com/ricardogayer/go-agui@v0.2.1
+go get github.com/ricardogayer/go-agui/model@v0.2.1   # provedores de modelo (opcional)
+go get github.com/ricardogayer/go-agui/ginx@v0.2.1    # adaptador Gin (opcional)
 ```
 
 São três módulos publicados, de propósito (um quarto, `examples`, existe só no
@@ -471,9 +471,9 @@ puro.
 mkdir meu-agente && cd meu-agente
 go mod init github.com/voce/meu-agente
 
-go get github.com/ricardogayer/go-agui@v0.2.0
-go get github.com/ricardogayer/go-agui/ginx@v0.2.0
-go get github.com/ricardogayer/go-agui/model@v0.2.0
+go get github.com/ricardogayer/go-agui@v0.2.1
+go get github.com/ricardogayer/go-agui/ginx@v0.2.1
+go get github.com/ricardogayer/go-agui/model@v0.2.1
 ```
 
 ### 2. O `main.go`
