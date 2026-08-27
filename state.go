@@ -10,7 +10,22 @@ import (
 	jsonpatch "github.com/evanphx/json-patch/v5"
 )
 
-// State é o estado compartilhado de um run: um documento JSON livre, sem chaves
+// State is the shared state of a run: a free-form JSON document, with no
+// reserved keys, mirrored in the client's `agent.state`.
+//
+// The contract this type guarantees — and the reason it exists instead of you
+// assembling patches by hand — is that **the operation applied here is exactly
+// the one that goes on the wire**. A client that starts from the STATE_SNAPSHOT
+// and applies every STATE_DELTA in order rebuilds the server's document byte
+// for byte. There is no "I mutated and forgot to emit" mode.
+//
+// A State obtained via [RunContext.State] is already bound to the run's
+// Emitter. A State created by [NewState] outside a run emits nothing and is
+// meant for tests.
+//
+// It is safe for concurrent use.
+//
+// PT: State é o estado compartilhado de um run: um documento JSON livre, sem chaves
 // reservadas, espelhado no `agent.state` do cliente.
 //
 // O contrato que este tipo garante — e a razão de ele existir em vez de você
@@ -30,14 +45,22 @@ type State struct {
 	emit *Emitter
 }
 
-// NewState cria um estado semeado com seed. Um seed nil vira um documento
+// NewState creates a state seeded with seed. A nil seed becomes an empty
+// document. The seed is copied; later mutations of the original map do not
+// affect the State.
+//
+// PT: NewState cria um estado semeado com seed. Um seed nil vira um documento
 // vazio. O seed é copiado; mutações posteriores no mapa original não afetam o
 // State.
 func NewState(seed map[string]any) *State {
 	return &State{doc: deepCopyJSONMap(seed)}
 }
 
-// stateFromAny semeia um State a partir do RunAgentInput.state, que é `any`.
+// stateFromAny seeds a State from RunAgentInput.state, which is `any`.
+// Anything that is not a JSON object becomes an empty document: the client's
+// state is an object by definition of the protocol.
+//
+// PT: stateFromAny semeia um State a partir do RunAgentInput.state, que é `any`.
 // Qualquer coisa que não seja um objeto JSON vira documento vazio: o estado do
 // cliente é um objeto por definição do protocolo.
 func stateFromAny(v any) *State {
@@ -47,7 +70,10 @@ func stateFromAny(v any) *State {
 	if m, ok := v.(map[string]any); ok {
 		return NewState(m)
 	}
-	// Veio de um decode com tipo concreto (um struct do chamador, por exemplo):
+	// It came from a decode with a concrete type (a caller's struct, for
+	// example): round-trip through JSON to turn it into a map.
+	//
+	// PT: Veio de um decode com tipo concreto (um struct do chamador, por exemplo):
 	// passa por JSON para virar mapa.
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -60,14 +86,20 @@ func stateFromAny(v any) *State {
 	return NewState(m)
 }
 
-// bind liga o State ao Emitter do run. Chamado pelo laço, não pelo usuário.
+// bind ties the State to the run's Emitter. Called by the loop, not by the
+// user.
+//
+// PT: bind liga o State ao Emitter do run. Chamado pelo laço, não pelo usuário.
 func (s *State) bind(e *Emitter) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.emit = e
 }
 
-// Snapshot devolve uma cópia profunda do documento. Mutar o resultado não afeta
+// Snapshot returns a deep copy of the document. Mutating the result does not
+// affect the State.
+//
+// PT: Snapshot devolve uma cópia profunda do documento. Mutar o resultado não afeta
 // o State.
 func (s *State) Snapshot() map[string]any {
 	s.mu.Lock()
@@ -75,7 +107,16 @@ func (s *State) Snapshot() map[string]any {
 	return deepCopyJSONMap(s.doc)
 }
 
-// Get lê o valor num caminho JSON Pointer (RFC 6901), por exemplo "/todos/0/id".
+// Get reads the value at a JSON Pointer path (RFC 6901), e.g. "/todos/0/id".
+//
+// A deliberate deviation from the RFC: both "" and "/" return the whole
+// document (in the RFC, "/" would point to a member with an empty key — which
+// nobody has in a UI state, whereas "read the root" is what everyone wants).
+// Note that [State.Set] follows the RFC to the letter via JSON Patch, so
+// Set("/", v) is NOT the mirror of Get("/"); to replace the whole document,
+// use [NewState] or write the members one by one.
+//
+// PT: Get lê o valor num caminho JSON Pointer (RFC 6901), por exemplo "/todos/0/id".
 //
 // Um desvio deliberado da RFC: tanto "" quanto "/" devolvem o documento
 // inteiro (na RFC, "/" apontaria para um membro de chave vazia — que ninguém
@@ -89,7 +130,14 @@ func (s *State) Get(path string) (any, bool) {
 	return getPointer(s.doc, path)
 }
 
-// Set escreve v no caminho JSON Pointer path, aplicando e emitindo um
+// Set writes v at the JSON Pointer path, applying and emitting a STATE_DELTA
+// with the corresponding operation.
+//
+// It uses `add`, not `replace`: in RFC 6902 `add` replaces a member that
+// already exists and creates one that does not, so it works in both cases. A
+// path whose PARENT does not exist is an error — create the parent first.
+//
+// PT: Set escreve v no caminho JSON Pointer path, aplicando e emitindo um
 // STATE_DELTA com a operação correspondente.
 //
 // Usa `add`, e não `replace`: em RFC 6902 o `add` substitui um membro que já
@@ -99,12 +147,21 @@ func (s *State) Set(path string, v any) error {
 	return s.Apply([]PatchOp{{Op: "add", Path: path, Value: v}})
 }
 
-// Remove apaga o caminho path, aplicando e emitindo o STATE_DELTA.
+// Remove deletes path, applying and emitting the STATE_DELTA.
+//
+// PT: Remove apaga o caminho path, aplicando e emitindo o STATE_DELTA.
 func (s *State) Remove(path string) error {
 	return s.Apply([]PatchOp{{Op: "remove", Path: path}})
 }
 
-// Apply aplica as operações ao documento e emite o STATE_DELTA correspondente.
+// Apply applies the operations to the document and emits the corresponding
+// STATE_DELTA.
+//
+// The application is atomic: if any operation fails, the document does not
+// change and nothing is emitted — which preserves the invariant that client
+// and server saw the same sequence of patches.
+//
+// PT: Apply aplica as operações ao documento e emite o STATE_DELTA correspondente.
 //
 // A aplicação é atômica: se qualquer operação falhar, o documento não muda e
 // nada é emitido — o que preserva o invariante de que cliente e servidor viram
@@ -130,7 +187,9 @@ func (s *State) Apply(ops []PatchOp) error {
 	return nil
 }
 
-// Emit publica o documento inteiro como STATE_SNAPSHOT.
+// Emit publishes the whole document as a STATE_SNAPSHOT.
+//
+// PT: Emit publica o documento inteiro como STATE_SNAPSHOT.
 func (s *State) Emit() {
 	s.mu.Lock()
 	emit, snap := s.emit, deepCopyJSONMap(s.doc)
@@ -140,27 +199,29 @@ func (s *State) Emit() {
 	}
 }
 
-// applyPatch roda as operações sobre uma cópia e devolve o documento novo.
+// applyPatch runs the operations over a copy and returns the new document.
+//
+// PT: applyPatch roda as operações sobre uma cópia e devolve o documento novo.
 func applyPatch(doc map[string]any, ops []PatchOp) (map[string]any, error) {
 	rawOps, err := json.Marshal(ops)
 	if err != nil {
-		return nil, fmt.Errorf("serializando operações JSON Patch: %w", err)
+		return nil, fmt.Errorf("serializing JSON Patch operations: %w", err)
 	}
 	patch, err := jsonpatch.DecodePatch(rawOps)
 	if err != nil {
-		return nil, fmt.Errorf("operações JSON Patch inválidas: %w", err)
+		return nil, fmt.Errorf("invalid JSON Patch operations: %w", err)
 	}
 	rawDoc, err := json.Marshal(doc)
 	if err != nil {
-		return nil, fmt.Errorf("serializando o estado: %w", err)
+		return nil, fmt.Errorf("serializing state: %w", err)
 	}
 	out, err := patch.Apply(rawDoc)
 	if err != nil {
-		return nil, fmt.Errorf("aplicando JSON Patch ao estado: %w", err)
+		return nil, fmt.Errorf("applying JSON Patch to state: %w", err)
 	}
 	var next map[string]any
 	if err := json.Unmarshal(out, &next); err != nil {
-		return nil, fmt.Errorf("estado resultante não é um objeto JSON: %w", err)
+		return nil, fmt.Errorf("resulting state is not a JSON object: %w", err)
 	}
 	if next == nil {
 		next = map[string]any{}
@@ -168,7 +229,11 @@ func applyPatch(doc map[string]any, ops []PatchOp) (map[string]any, error) {
 	return next, nil
 }
 
-// deepCopyJSONMap copia via round-trip JSON. É o jeito mais simples de garantir
+// deepCopyJSONMap copies via a JSON round-trip. It is the simplest way to
+// guarantee that no sub-map or slice remains shared with the caller, and the
+// cost is irrelevant for documents the size of a UI state.
+//
+// PT: deepCopyJSONMap copia via round-trip JSON. É o jeito mais simples de garantir
 // que nenhum sub-mapa ou slice continue compartilhado com o chamador, e o custo
 // é irrelevante para documentos do tamanho de um estado de UI.
 func deepCopyJSONMap(m map[string]any) map[string]any {
@@ -186,7 +251,9 @@ func deepCopyJSONMap(m map[string]any) map[string]any {
 	return out
 }
 
-// getPointer resolve um JSON Pointer (RFC 6901) sobre o documento.
+// getPointer resolves a JSON Pointer (RFC 6901) over the document.
+//
+// PT: getPointer resolve um JSON Pointer (RFC 6901) sobre o documento.
 func getPointer(doc map[string]any, path string) (any, bool) {
 	if path == "" || path == "/" {
 		return doc, true
@@ -228,7 +295,10 @@ func splitPointer(s string) []string {
 	return parts
 }
 
-// unescapePointerToken desfaz o escape do RFC 6901: ~1 é "/" e ~0 é "~",
+// unescapePointerToken undoes the RFC 6901 escaping: ~1 is "/" and ~0 is "~",
+// necessarily in that order (otherwise "~01" would become "/" instead of "~1").
+//
+// PT: unescapePointerToken desfaz o escape do RFC 6901: ~1 é "/" e ~0 é "~",
 // necessariamente nessa ordem (senão "~01" viraria "/" em vez de "~1").
 func unescapePointerToken(t string) string {
 	return strings.ReplaceAll(strings.ReplaceAll(t, "~1", "/"), "~0", "~")
@@ -237,10 +307,10 @@ func unescapePointerToken(t string) string {
 func pointerIndex(tok string, n int) (int, error) {
 	i, err := strconv.Atoi(tok)
 	if err != nil {
-		return 0, fmt.Errorf("índice não numérico %q", tok)
+		return 0, fmt.Errorf("non-numeric index %q", tok)
 	}
 	if i < 0 || i >= n {
-		return 0, fmt.Errorf("índice %d fora do array de %d", i, n)
+		return 0, fmt.Errorf("index %d out of range for array of %d", i, n)
 	}
 	return i, nil
 }

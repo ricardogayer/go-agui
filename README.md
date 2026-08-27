@@ -247,7 +247,7 @@ ag, err := agui.New(ctx, m, agui.WithTools(
 	agui.NewTool("a", "...", fnA),
 	agui.NewRawTool("b", "...", schemaB, fnB),
 ))
-// err: tool "b": schema de parâmetros inválido: ...
+// err: tool "b": invalid parameter schema: ...
 ```
 
 The reason is a language one: in Go, a two-value expression can only be the
@@ -684,7 +684,7 @@ aguitest.RequireContains(t, evs, agui.EventToolCallResult, agui.EventRunFinished
 the most: every `START` has an `END`, no block overlaps, and the run has exactly
 **one** terminal event, at the end. There's also `RequireSequence` (the exact
 sequence), `Collect`/`ParseSSE` (to exercise an `http.Handler`), plus
-`Primeiro`/`Todos`/`Tipos` (first/all/types) and `TextoConcatenado` (concatenated
+`First`/`All`/`Types` and `ConcatenatedText` (concatenated
 text).
 
 On the other side, `FakeModel.Calls()` returns the messages the model received on

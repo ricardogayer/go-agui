@@ -15,8 +15,14 @@ import (
 	"github.com/cloudwego/eino/schema"
 )
 
-// Agent é um agente AG-UI: o laço modelo↔tools, o streaming dos eventos e as
-// regras que decidem quem executa cada tool.
+// Agent is an AG-UI agent: the model↔tools loop, the event streaming and the
+// rules that decide who executes each tool.
+//
+// It is safe for concurrent use and is not mutated per request: the frontend
+// tools are bound to the model with WithTools, which returns a new instance.
+//
+// PT: Agent é um agente AG-UI: o laço modelo↔tools, o streaming dos eventos e
+// as regras que decidem quem executa cada tool.
 //
 // É seguro para uso concorrente e não é mutado por requisição: as tools de
 // frontend são ligadas ao modelo com WithTools, que devolve uma instância nova.
@@ -24,13 +30,27 @@ type Agent struct {
 	base model.ToolCallingChatModel
 	opts *options
 
-	// invokable são as tools que o servidor executa, por nome.
+	// invokable are the tools the server executes, by name.
+	//
+	// PT: invokable são as tools que o servidor executa, por nome.
 	invokable map[string]tool.InvokableTool
-	// infos são os schemas anunciados ao modelo, na ordem de registro.
+	// infos are the schemas announced to the model, in registration order.
+	//
+	// PT: infos são os schemas anunciados ao modelo, na ordem de registro.
 	infos []*schema.ToolInfo
 }
 
-// New constrói um agente sobre um chat model do Eino.
+// New builds an agent on top of an Eino chat model.
+//
+// It takes ctx because the tool schemas are resolved here — and `Info` may do
+// network I/O, as an MCP tool does. Resolving at construction, and not on every
+// request, is what allows failing at process start-up instead of in the middle
+// of a conversation.
+//
+// Tool construction errors are aggregated: an invalid struct tag in two
+// different tools shows up in both, at once, with the name of each one.
+//
+// PT: New constrói um agente sobre um chat model do Eino.
 //
 // Recebe ctx porque os schemas das tools são resolvidos aqui — e `Info` pode
 // fazer I/O de rede, como faz uma tool MCP. Resolver na construção, e não a
@@ -41,7 +61,7 @@ type Agent struct {
 // tools diferentes aparece nas duas, de uma vez, com o nome de cada uma.
 func New(ctx context.Context, m model.ToolCallingChatModel, opts ...Option) (*Agent, error) {
 	if m == nil {
-		return nil, errors.New("agui: o chat model não pode ser nil")
+		return nil, errors.New("agui: the chat model must not be nil")
 	}
 
 	cfg := defaultOptions()
@@ -50,7 +70,7 @@ func New(ctx context.Context, m model.ToolCallingChatModel, opts ...Option) (*Ag
 	}
 	if cfg.maxIterations < 1 || cfg.maxIterations > MaxIterationsCeiling {
 		return nil, fmt.Errorf(
-			"agui: WithMaxIterations(%d) fora da faixa aceita [1, %d]",
+			"agui: WithMaxIterations(%d) outside the accepted range [1, %d]",
 			cfg.maxIterations, MaxIterationsCeiling)
 	}
 
@@ -66,16 +86,18 @@ func New(ctx context.Context, m model.ToolCallingChatModel, opts ...Option) (*Ag
 	for _, t := range cfg.tools {
 		info, err := t.Info(ctx)
 		if err != nil {
-			// brokenTool já embrulha a mensagem com o nome da tool.
+			// brokenTool already wraps the message with the tool name.
+			//
+			// PT: brokenTool já embrulha a mensagem com o nome da tool.
 			errs = append(errs, err)
 			continue
 		}
 		if info == nil || info.Name == "" {
-			errs = append(errs, errors.New("uma tool devolveu um ToolInfo sem nome"))
+			errs = append(errs, errors.New("a tool returned a ToolInfo without a name"))
 			continue
 		}
 		if seen[info.Name] {
-			errs = append(errs, fmt.Errorf("tool %q registrada duas vezes", info.Name))
+			errs = append(errs, fmt.Errorf("tool %q registered twice", info.Name))
 			continue
 		}
 		seen[info.Name] = true
@@ -90,7 +112,14 @@ func New(ctx context.Context, m model.ToolCallingChatModel, opts ...Option) (*Ag
 	return a, nil
 }
 
-// Run executa um run AG-UI completo, do primeiro turno do modelo ao evento
+// Run executes a complete AG-UI run, from the model's first turn to the
+// terminal event.
+//
+// RUN_STARTED has already been emitted by [Handler]; do not repeat it. The
+// returned error is for the transport to log — the corresponding terminal
+// event has already been emitted here.
+//
+// PT: Run executa um run AG-UI completo, do primeiro turno do modelo ao evento
 // terminal.
 //
 // RUN_STARTED já foi emitido por [Handler]; não o repita. O erro devolvido é
@@ -117,9 +146,15 @@ func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error
 		return err
 	}
 
-	// 1. As tools de backend são fixas; as de frontend entram só como schema,
-	//    ligadas por requisição. As duas listas vão juntas para o modelo, que
-	//    não distingue entre elas — quem separa é o laço, mais abaixo.
+	// 1. The backend tools are fixed; the frontend ones come in only as schema,
+	//    bound per request. Both lists go together to the model, which does not
+	//    distinguish between them — the loop, further below, is what separates
+	//    them.
+	//
+	// PT: 1. As tools de backend são fixas; as de frontend entram só como
+	//    schema, ligadas por requisição. As duas listas vão juntas para o
+	//    modelo, que não distingue entre elas — quem separa é o laço, mais
+	//    abaixo.
 	clientNames := ClientToolNames(in.Tools)
 	cm, err := a.bindTools(in, logger)
 	if err != nil {
@@ -127,12 +162,15 @@ func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error
 		return finish("error", err)
 	}
 
-	// 2. Estado do run. O padrão devolve o que veio, para que o `agent.state`
-	//    do cliente não regrida ao passar por aqui.
+	// 2. Run state. The default returns what came in, so that the client's
+	//    `agent.state` does not regress by passing through here.
+	//
+	// PT: 2. Estado do run. O padrão devolve o que veio, para que o
+	//    `agent.state` do cliente não regrida ao passar por aqui.
 	state, err := a.opts.stateFactory(ctx, in)
 	if err != nil {
 		emit.RunError("failed to initialise the agent state")
-		return finish("error", fmt.Errorf("construindo o estado do run: %w", err))
+		return finish("error", fmt.Errorf("building the run state: %w", err))
 	}
 	state.bind(emit)
 
@@ -146,31 +184,46 @@ func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error
 	}
 	ctx = rc.attach(ctx)
 
-	// 3. O contexto da requisição vira um bloco de sistema, como fazia o
+	// 3. The request context becomes a system block, as the Python
+	//    CopilotKitMiddleware did. This is how runtime middlewares deliver
+	//    information the model would not have otherwise.
+	//
+	// PT: 3. O contexto da requisição vira um bloco de sistema, como fazia o
 	//    CopilotKitMiddleware do Python. É por aqui que middlewares do runtime
 	//    entregam informação que o modelo não teria de outra forma.
 	appContext := a.opts.ctxFormatter(in.Context)
 
-	// 4. Retomada: se o cliente respondeu a um interrupt, as tools pausadas no
-	//    run anterior rodam ANTES do modelo — o histórico que ele reenviou tem
-	//    a tool call sem resposta, e é essa lacuna que fechamos aqui.
-	if pausadas := pendingResumeCalls(conv, in.Resume); len(pausadas) > 0 {
+	// 4. Resume: if the client answered an interrupt, the tools paused in the
+	//    previous run execute BEFORE the model — the history it resent has the
+	//    tool call without an answer, and that is the gap we close here.
+	//
+	// PT: 4. Retomada: se o cliente respondeu a um interrupt, as tools paused
+	//    no run anterior rodam ANTES do modelo — o histórico que ele reenviou
+	//    tem a tool call sem resposta, e é essa lacuna que fechamos aqui.
+	if paused := pendingResumeCalls(conv, in.Resume); len(paused) > 0 {
 		emit.StepStarted(a.opts.stepTools)
-		its := a.settleToolCalls(ctx, rc, emit, conv, pausadas, clientNames, logger)
+		its := a.settleToolCalls(ctx, rc, emit, conv, paused, clientNames, logger)
 		emit.StepFinished(a.opts.stepTools)
 		if len(its) > 0 {
-			// Interrompeu de novo (outra tool do mesmo turno, ou a mesma
+			// Interrupted again (another tool from the same turn, or the same
+			// one asking for one more piece of data).
+			//
+			// PT: Interrompeu de novo (outra tool do mesmo turno, ou a mesma
 			// pedindo mais um dado).
 			return finish("interrupt", a.finishInterrupt(emit, conv, state, its))
 		}
 	}
 
 	for iterations = 1; iterations <= a.opts.maxIterations; iterations++ {
-		// errors.Join cobre os dois jeitos de o cliente sumir: o contexto
+		// errors.Join covers the two ways the client can vanish: the cancelled
+		// context (disconnection detected by the HTTP server) and the failed
+		// write (detected by the Emitter). Either one may be nil.
+		//
+		// PT: errors.Join cobre os dois jeitos de o cliente sumir: o contexto
 		// cancelado (desconexão detectada pelo servidor HTTP) e a escrita que
 		// falhou (detectada pelo Emitter). Um deles pode estar nil.
 		if err := errors.Join(ctx.Err(), emit.Err()); err != nil {
-			return finish("error", err) // cliente desconectou
+			return finish("error", err) // client disconnected (PT: cliente desconectou)
 		}
 
 		turnStart := time.Now()
@@ -182,15 +235,21 @@ func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error
 		turn, err := streamTurn(ctx, emit, cm, msgs)
 		emit.StepFinished(a.opts.stepModel)
 		if err != nil {
-			// Contexto cancelado ou emitter já bloqueado significam cliente ido
-			// ou processo desligando — normal num servidor SSE. Não vale ERROR,
-			// e o RUN_ERROR não chegaria a lugar nenhum de qualquer forma.
+			// A cancelled context or an already-blocked emitter means the
+			// client is gone or the process is shutting down — normal for an
+			// SSE server. It is not worth ERROR, and the RUN_ERROR would not
+			// reach anywhere anyway.
+			//
+			// PT: Contexto cancelado ou emitter já bloqueado significam cliente
+			// ido ou processo desligando — normal num servidor SSE. Não vale
+			// ERROR, e o RUN_ERROR não chegaria a lugar nenhum de qualquer
+			// forma.
 			if errors.Is(err, context.Canceled) ||
 				errors.Is(err, context.DeadlineExceeded) || emit.Err() != nil {
-				logger.Info("run abortado (cliente saiu ou servidor desligando)")
+				logger.Info("run aborted (client left or server shutting down)")
 				return finish("error", err)
 			}
-			logger.Error("turno do modelo falhou", "error", err)
+			logger.Error("model turn failed", "error", err)
 			emit.RunError("the agent failed to generate a response")
 			return finish("error", err)
 		}
@@ -207,21 +266,33 @@ func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error
 		}
 
 		if len(assistant.ToolCalls) == 0 {
-			return finish("success", a.finishSuccess(emit, conv, state)) // resposta final
+			return finish("success", a.finishSuccess(emit, conv, state)) // final answer (PT: resposta final)
 		}
 
 		actionable := validateToolCalls(logger, assistant, conv)
 		if len(actionable) == 0 {
-			continue // só chamadas malformadas neste turno; o modelo se corrige
+			continue // only malformed calls this turn; the model corrects itself (PT: só chamadas malformadas neste turno; o modelo se corrige)
 		}
 
-		// 5. O ponto crítico: separar o que o servidor pode executar. O que é do
-		//    cliente devolve o controle; o resto é uma tool de backend ou um
-		//    nome alucinado pelo modelo.
+		// 5. The critical point: separating what the server can execute. What
+		//    belongs to the client hands control back; the rest is a backend
+		//    tool or a name hallucinated by the model.
+		//
+		// PT: 5. O ponto crítico: separar o que o servidor pode executar. O que
+		//    é do cliente devolve o controle; o resto é uma tool de backend ou
+		//    um nome alucinado pelo modelo.
 		serverCalls, clientCalls := ClassifyToolCalls(actionable, clientNames)
 
 		if len(clientCalls) > 0 {
-			// Devolve o controle: o cliente executa e reenvia o histórico
+			// Hand control back: the client executes and resends the complete
+			// history in a new run.
+			//
+			// The server calls of this turn will not be executed, so we answer
+			// each one with a synthetic result; otherwise the MESSAGES_SNAPSHOT
+			// would carry a tool call without an answer, and sequence
+			// validators reject that.
+			//
+			// PT: Devolve o controle: o cliente executa e reenvia o histórico
 			// completo num run novo.
 			//
 			// As chamadas de servidor deste turno não serão executadas, então
@@ -244,22 +315,29 @@ func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error
 	}
 
 	iterations = a.opts.maxIterations
-	logger.Warn("agente não convergiu dentro do orçamento de iterações",
+	logger.Warn("agent did not converge within the iteration budget",
 		"maxIterations", a.opts.maxIterations)
 	emit.StateSnapshot(state.Snapshot())
 	emit.MessagesSnapshot(conv.Snapshot())
-	err = fmt.Errorf("o agente não convergiu em %d iterações", a.opts.maxIterations)
+	err = fmt.Errorf("the agent did not converge in %d iterations", a.opts.maxIterations)
 	emit.RunError(fmt.Sprintf("agent did not converge within %d iterations", a.opts.maxIterations))
 	return finish("error", err)
 }
 
-// bindTools liga ao modelo as tools de backend mais as de frontend da
+// bindTools binds to the model the backend tools plus the request's frontend
+// tools.
+//
+// PT: bindTools liga ao modelo as tools de backend mais as de frontend da
 // requisição.
 func (a *Agent) bindTools(in *RunAgentInput, logger *slog.Logger) (model.ToolCallingChatModel, error) {
 	infos := a.infos
 	if len(in.Tools) > 0 {
 		clientInfos := clientToolInfos(in.Tools, logger)
-		// Concatena numa fatia nova: `append` direto em a.infos poderia
+		// Concatenate into a new slice: a direct `append` on a.infos could
+		// write into the spare capacity of the shared slice, and one request
+		// would leak its frontend tools into another.
+		//
+		// PT: Concatena numa fatia nova: `append` direto em a.infos poderia
 		// escrever na capacidade sobrando do slice compartilhado, e uma
 		// requisição vazaria as tools de frontend na outra.
 		infos = make([]*schema.ToolInfo, 0, len(a.infos)+len(clientInfos))
@@ -272,7 +350,11 @@ func (a *Agent) bindTools(in *RunAgentInput, logger *slog.Logger) (model.ToolCal
 	return a.base.WithTools(infos)
 }
 
-// settleToolCalls executa as chamadas de servidor de um turno, emitindo o
+// settleToolCalls executes a turn's server calls, emitting the result of each
+// one. It returns the interrupts requested by the tools; an empty list means
+// the loop may continue.
+//
+// PT: settleToolCalls executa as chamadas de servidor de um turno, emitindo o
 // resultado de cada uma. Devolve os interrupts pedidos pelas tools; lista vazia
 // significa que o laço pode seguir.
 func (a *Agent) settleToolCalls(
@@ -286,9 +368,12 @@ func (a *Agent) settleToolCalls(
 ) []InterruptPoint {
 	var its []InterruptPoint
 	for _, sc := range calls {
-		// Uma tool que já foi cancelada pelo humano não roda: responde-se a
+		// A tool that the human has already cancelled does not run: the call
+		// is answered with the refusal, and the model continues from it.
+		//
+		// PT: Uma tool que já foi cancelada pelo humano não roda: responde-se a
 		// chamada com a recusa, e o modelo segue a partir dela.
-		if cancelada(rc.Resume(), sc.ID) {
+		if isCancelled(rc.Resume(), sc.ID) {
 			const result = `{"status":"cancelled","note":"the user declined this action"}`
 			emit.ToolResult(events.GenerateMessageID(), sc.ID, result)
 			conv.Append(schema.ToolMessage(result, sc.ID))
@@ -311,22 +396,41 @@ func (a *Agent) settleToolCalls(
 		}
 
 		if ie != nil {
-			// A chamada fica SEM resposta de propósito: é ela que o cliente
+			// The call is left WITHOUT an answer on purpose: it is what the
+			// client needs to see pending in order to render the decision, and
+			// it is what the resume will close.
+			//
+			// PT: A chamada fica SEM resposta de propósito: é ela que o cliente
 			// precisa ver pendente para renderizar a decisão, e é ela que a
 			// retomada vai fechar.
 			its = append(its, ie.toAGUI(sc.ID))
 			continue
 		}
 
-		// O TOOL_CALL_* já saiu no streaming do turno; aqui vai só o resultado,
-		// que é o que o cliente renderiza como "backend tool".
+		// The TOOL_CALL_* already went out in the turn's streaming; here goes
+		// only the result, which is what the client renders as "backend tool".
+		//
+		// PT: O TOOL_CALL_* já saiu no streaming do turno; aqui vai só o
+		// resultado, que é o que o cliente renderiza como "backend tool".
 		emit.ToolResult(events.GenerateMessageID(), sc.ID, result)
 		conv.Append(schema.ToolMessage(result, sc.ID))
 	}
 	return its
 }
 
-// runServerTool executa uma tool de backend e devolve o conteúdo do
+// runServerTool executes a backend tool and returns the content of the
+// TOOL_CALL_RESULT, or the interrupt it requested. The third return value is
+// the execution error, when there was one — it is already represented in the
+// JSON result and exists only so the OnToolResult hook can observe the
+// original failure.
+//
+// Apart from the interrupt, nothing here aborts the run. An unknown tool, one
+// that fails or an invalid argument become a JSON error result: the model reads
+// the answer on the next turn and corrects itself, which is how LangChain
+// handles a tool's exception. Taking the run down would leave the user without
+// an answer because of a wrong name.
+//
+// PT: runServerTool executa uma tool de backend e devolve o conteúdo do
 // TOOL_CALL_RESULT, ou o interrupt que ela pediu. O terceiro retorno é o erro
 // da execução, quando houve — ele já está representado no resultado JSON e
 // existe apenas para o hook OnToolResult observar a falha original.
@@ -346,36 +450,45 @@ func (a *Agent) runServerTool(
 	name := tc.Function.Name
 	t, ok := a.invokable[name]
 	if !ok {
-		logger.Warn("o modelo chamou uma tool inexistente", "tool", name)
+		logger.Warn("the model called a nonexistent tool", "tool", name)
 		return fmt.Sprintf(
 			`{"error":"unknown tool %q: callable tools are %s"}`,
 			name, jsonList(a.toolNames(clientNames))), nil, nil
 	}
 
-	// O RunContext desta chamada: é assim que a tool alcança o emitter, o
+	// The RunContext of this call: this is how the tool reaches the emitter,
+	// the state and — above all — the call id, which is the key of the resume.
+	//
+	// PT: O RunContext desta chamada: é assim que a tool alcança o emitter, o
 	// estado e — sobretudo — o id da chamada, que é a chave da retomada.
 	callCtx := rc.forToolCall(tc.ID, name).attach(ctx)
 
 	out, err := t.InvokableRun(callCtx, tc.Function.Arguments)
 	if err != nil {
 		if ie, ok := asInterrupt(err); ok {
-			logger.Info("tool pediu uma decisão humana", "tool", name, "toolCallId", tc.ID)
+			logger.Info("tool requested a human decision", "tool", name, "toolCallId", tc.ID)
 			return "", ie, nil
 		}
-		logger.Error("tool de backend falhou", "tool", name, "error", err)
+		logger.Error("backend tool failed", "tool", name, "error", err)
 		msg, _ := json.Marshal(err.Error())
 		return fmt.Sprintf(`{"error":"tool %q failed","detail":%s}`, name, msg), nil, err
 	}
 	if out == "" {
-		// O emitter substituiria por "(empty)"; um JSON vazio é mais legível
-		// para o modelo do que um marcador.
+		// The emitter would replace it with "(empty)"; an empty JSON is more
+		// readable for the model than a marker.
+		//
+		// PT: O emitter substituiria por "(empty)"; um JSON vazio é mais
+		// legível para o modelo do que um marcador.
 		return "[]", nil, nil
 	}
 	return out, nil, nil
 }
 
-// toolNames lista tudo que o modelo poderia ter chamado neste run — as tools de
-// backend mais as de frontend enviadas na requisição.
+// toolNames lists everything the model could have called in this run — the
+// backend tools plus the frontend ones sent in the request.
+//
+// PT: toolNames lista tudo que o modelo poderia ter chamado neste run — as
+// tools de backend mais as de frontend enviadas na requisição.
 func (a *Agent) toolNames(clientNames map[string]bool) []string {
 	names := make([]string, 0, len(a.infos)+len(clientNames))
 	for _, info := range a.infos {
@@ -384,7 +497,7 @@ func (a *Agent) toolNames(clientNames map[string]bool) []string {
 	for name := range clientNames {
 		names = append(names, name)
 	}
-	sort.Strings(names) // a iteração de um map é aleatória; a mensagem seria instável
+	sort.Strings(names) // map iteration is random; the message would be unstable (PT: a iteração de um map é aleatória; a mensagem seria instável)
 	return names
 }
 
@@ -396,7 +509,11 @@ func jsonList(names []string) string {
 	return string(b)
 }
 
-// finishSuccess emite a cauda do run na mesma ordem do adaptador Python:
+// finishSuccess emits the tail of the run in the same order as the Python
+// adapter: STATE_SNAPSHOT, then MESSAGES_SNAPSHOT, then RUN_FINISHED
+// (get_state_and_messages_snapshots, in ag_ui_langgraph/agent.py).
+//
+// PT: finishSuccess emite a cauda do run na mesma ordem do adaptador Python:
 // STATE_SNAPSHOT, depois MESSAGES_SNAPSHOT, depois RUN_FINISHED
 // (get_state_and_messages_snapshots, em ag_ui_langgraph/agent.py).
 func (a *Agent) finishSuccess(emit *Emitter, conv *Conversation, state *State) error {
@@ -406,9 +523,13 @@ func (a *Agent) finishSuccess(emit *Emitter, conv *Conversation, state *State) e
 	return nil
 }
 
-// finishInterrupt encerra o run pedindo uma decisão. O MESSAGES_SNAPSHOT sai
-// com a tool call pendente e SEM resposta — é ela que o cliente renderiza como
-// a pergunta, e é ela que a retomada fecha.
+// finishInterrupt ends the run asking for a decision. The MESSAGES_SNAPSHOT
+// goes out with the pending tool call and WITHOUT an answer — it is what the
+// client renders as the question, and it is what the resume closes.
+//
+// PT: finishInterrupt encerra o run pedindo uma decisão. O MESSAGES_SNAPSHOT
+// sai com a tool call pendente e SEM resposta — é ela que o cliente renderiza
+// como a pergunta, e é ela que a retomada fecha.
 func (a *Agent) finishInterrupt(emit *Emitter, conv *Conversation, state *State, its []InterruptPoint) error {
 	emit.StateSnapshot(state.Snapshot())
 	emit.MessagesSnapshot(conv.Snapshot())
@@ -416,7 +537,15 @@ func (a *Agent) finishInterrupt(emit *Emitter, conv *Conversation, state *State,
 	return nil
 }
 
-// pendingResumeCalls devolve as tool calls que ficaram sem resposta no run
+// pendingResumeCalls returns the tool calls that were left without an answer
+// in the previous run and for which the client has now sent a decision.
+//
+// There is no store on the server, and that is deliberate: AG-UI already
+// resends the whole history on every request, so the pending call ARRIVES in
+// the conversation — it only has to be found. An in-memory store would add
+// nothing and would become wrong as soon as there was more than one replica.
+//
+// PT: pendingResumeCalls devolve as tool calls que ficaram sem resposta no run
 // anterior e para as quais o cliente mandou uma decisão agora.
 //
 // Não há store no servidor, e isso é deliberado: o AG-UI já reenvia o histórico
@@ -456,8 +585,10 @@ func pendingResumeCalls(conv *Conversation, resume []ResumeEntry) []schema.ToolC
 	return out
 }
 
-// cancelada informa se o humano recusou a chamada.
-func cancelada(resume []ResumeEntry, toolCallID string) bool {
+// isCancelled reports whether the human declined the call.
+//
+// PT: isCancelled informa se o humano recusou a chamada.
+func isCancelled(resume []ResumeEntry, toolCallID string) bool {
 	for _, e := range resume {
 		if e.InterruptID == toolCallID && e.Status == ResumeStatusCancelled {
 			return true

@@ -16,19 +16,19 @@ import (
 func runner() agui.Runner {
 	return agui.RunnerFunc(func(_ context.Context, e *agui.Emitter, _ *agui.RunAgentInput) error {
 		e.TextStart("m1")
-		e.TextContent("m1", "olá do Gin")
+		e.TextContent("m1", "hello from Gin")
 		e.TextEnd("m1")
 		e.RunFinished()
 		return nil
 	})
 }
 
-func TestOStreamingSSEAtravessaOGin(t *testing.T) {
+func TestSSEStreamingPassesThroughGin(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	r := gin.New()
-	ginx.Register(r, runner(), "agente_teste")
+	ginx.Register(r, runner(), "test_agent")
 
-	evs := aguitest.Collect(t, r, aguitest.Input("oi"))
+	evs := aguitest.Collect(t, r, aguitest.Input("hi"))
 
 	aguitest.RequireSequence(t, evs,
 		agui.EventRunStarted,
@@ -36,44 +36,47 @@ func TestOStreamingSSEAtravessaOGin(t *testing.T) {
 		agui.EventRunFinished)
 	aguitest.RequireBalanced(t, evs)
 
-	if got := aguitest.TextoConcatenado(evs); got != "olá do Gin" {
-		t.Fatalf("texto = %q", got)
+	if got := aguitest.ConcatenatedText(evs); got != "hello from Gin" {
+		t.Fatalf("text = %q", got)
 	}
 }
 
-func TestEngineAtendeOHealthNasDuasFormas(t *testing.T) {
+func TestEngineServesBothHealthPaths(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	// O Engine sozinho não normaliza; quem faz isso é o ListenAndServe. Aqui
+	// Engine alone does not normalize; ListenAndServe is what does it. Here we
+	// assemble the same stack by hand to exercise both paths.
+	//
+	// PT: O Engine sozinho não normaliza; quem faz isso é o ListenAndServe. Aqui
 	// montamos o mesmo empilhamento à mão para exercitar os dois caminhos.
-	h := agui.NormalizeHealthPath(ginx.Engine(runner(), "agente_teste"))
+	h := agui.NormalizeHealthPath(ginx.Engine(runner(), "test_agent"))
 
-	for _, caminho := range []string{"/health", "//health"} {
-		req := httptest.NewRequest(http.MethodGet, caminho, nil)
+	for _, path := range []string{"/health", "//health"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
 		rec := httptest.NewRecorder()
 		h.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
-			t.Errorf("GET %s = %d, esperava 200 (corpo: %s)", caminho, rec.Code, rec.Body.String())
+			t.Errorf("GET %s = %d, expected 200 (body: %s)", path, rec.Code, rec.Body.String())
 			continue
 		}
-		if !strings.Contains(rec.Body.String(), "agente_teste") {
-			t.Errorf("GET %s = %s", caminho, rec.Body.String())
+		if !strings.Contains(rec.Body.String(), "test_agent") {
+			t.Errorf("GET %s = %s", path, rec.Body.String())
 		}
 	}
 }
 
-func TestCORSRespondeAoPreflight(t *testing.T) {
+func TestCORSAnswersPreflight(t *testing.T) {
 	gin.SetMode(gin.TestMode)
-	engine := ginx.Engine(runner(), "agente_teste", ginx.WithCORS())
+	engine := ginx.Engine(runner(), "test_agent", ginx.WithCORS())
 
 	req := httptest.NewRequest(http.MethodOptions, "/", nil)
 	rec := httptest.NewRecorder()
 	engine.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusNoContent {
-		t.Fatalf("preflight = %d, esperava 204", rec.Code)
+		t.Fatalf("preflight = %d, expected 204", rec.Code)
 	}
 	if rec.Header().Get("Access-Control-Allow-Origin") != "*" {
-		t.Error("faltou o cabeçalho de CORS")
+		t.Error("missing CORS header")
 	}
 }

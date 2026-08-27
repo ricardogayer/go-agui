@@ -11,11 +11,22 @@ import (
 	"time"
 )
 
-// Mux monta as rotas do contrato AG-UI:
+// Mux mounts the routes of the AG-UI contract:
 //
-//	POST /        → o run (SSE)
-//	GET  /health  → o healthcheck
-//	GET  //health → idem, reescrito para /health
+//	POST /        → the run (SSE)
+//	GET  /health  → the healthcheck
+//	GET  //health → same, rewritten to /health
+//
+// About the double slash: the Python adapter mounts the healthcheck at
+// `path + "/health"`; with path="/" that is literally `//health`, and that is
+// the path any probe written against the Python backend uses.
+//
+// Registering both forms would be more explicit, but it is not possible: both
+// http.ServeMux and Gin's router reject a pattern with an "unclean" path — the
+// ServeMux panics with "non-CONNECT pattern with unclean path can never
+// match". Hence the rewrite, which happens before routing.
+//
+// PT: Mux monta as rotas do contrato AG-UI (ver a tabela acima).
 //
 // Sobre a barra dobrada: o adaptador Python monta o healthcheck em
 // `path + "/health"`; com path="/" isso dá literalmente `//health`, e é esse o
@@ -32,7 +43,12 @@ func Mux(r Runner, agentName string, opts ...HandlerOption) http.Handler {
 	return NormalizeHealthPath(mux)
 }
 
-// NormalizeHealthPath reescreve `//health` para `/health` antes do roteamento.
+// NormalizeHealthPath rewrites `//health` to `/health` before routing.
+//
+// Exported because whoever builds their own router — a *gin.Engine, for
+// example — needs it for the same reason, and it cannot be a route. See [Mux].
+//
+// PT: NormalizeHealthPath reescreve `//health` para `/health` antes do roteamento.
 //
 // Exportada porque quem monta o próprio roteador — um *gin.Engine, por exemplo
 // — precisa dela pelo mesmo motivo, e ela não tem como ser uma rota. Ver [Mux].
@@ -48,7 +64,18 @@ func NormalizeHealthPath(next http.Handler) http.Handler {
 	})
 }
 
-// ListenAndServe sobe um servidor HTTP em addr e o desliga graciosamente quando
+// ListenAndServe starts an HTTP server on addr and shuts it down gracefully
+// when ctx is cancelled.
+//
+// There is no WriteTimeout, and that is deliberate: an SSE run lasts as long as
+// the conversation and a write deadline would cut it midway. ReadHeaderTimeout
+// is present, which is what protects against idle connections.
+//
+// This function does NOT register flags nor read the command line — a library
+// that calls flag.Parse breaks the caller's FlagSet, and `go test`. See
+// [CheckHealth] for the container probe.
+//
+// PT: ListenAndServe sobe um servidor HTTP em addr e o desliga graciosamente quando
 // ctx é cancelado.
 //
 // Não há WriteTimeout, e isso é deliberado: um run SSE dura o tempo da conversa
@@ -75,7 +102,7 @@ func ListenAndServe(ctx context.Context, addr string, h http.Handler, opts ...Se
 
 	errCh := make(chan error, 1)
 	go func() {
-		cfg.logger.Info("servidor no ar", "addr", addr)
+		cfg.logger.Info("server is up", "addr", addr)
 		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			errCh <- err
 			return
@@ -89,11 +116,11 @@ func ListenAndServe(ctx context.Context, addr string, h http.Handler, opts ...Se
 	case <-ctx.Done():
 	}
 
-	cfg.logger.Info("sinal recebido; drenando conexões")
+	cfg.logger.Info("signal received; draining connections")
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.shutdownTimeout)
 	defer cancel()
 	if err := srv.Shutdown(shutdownCtx); err != nil {
-		return fmt.Errorf("desligamento não drenou a tempo: %w", err)
+		return fmt.Errorf("shutdown did not drain in time: %w", err)
 	}
 	return nil
 }
@@ -103,10 +130,14 @@ type serveOptions struct {
 	shutdownTimeout time.Duration
 }
 
-// ServeOption configura [ListenAndServe].
+// ServeOption configures [ListenAndServe].
+//
+// PT: ServeOption configura [ListenAndServe].
 type ServeOption func(*serveOptions)
 
-// WithServeLogger define o logger do servidor.
+// WithServeLogger sets the server logger.
+//
+// PT: WithServeLogger define o logger do servidor.
 func WithServeLogger(l *slog.Logger) ServeOption {
 	return func(o *serveOptions) {
 		if l != nil {
@@ -115,7 +146,10 @@ func WithServeLogger(l *slog.Logger) ServeOption {
 	}
 }
 
-// WithShutdownTimeout define quanto tempo o desligamento espera pelas conexões
+// WithShutdownTimeout sets how long the shutdown waits for in-flight
+// connections. The default is 10s.
+//
+// PT: WithShutdownTimeout define quanto tempo o desligamento espera pelas conexões
 // em voo. O padrão é 10s.
 func WithShutdownTimeout(d time.Duration) ServeOption {
 	return func(o *serveOptions) {
@@ -125,21 +159,31 @@ func WithShutdownTimeout(d time.Duration) ServeOption {
 	}
 }
 
-// CheckHealth bate no /health de um servidor e devolve erro se ele não estiver
-// saudável.
+// CheckHealth hits a server's /health and returns an error if it is not
+// healthy.
 //
-// Existe para a sonda de containers distroless, que não têm shell nem curl: o
-// próprio binário vira a sonda. No main da aplicação:
+// It exists for the probe of distroless containers, which have neither a shell
+// nor curl: the binary itself becomes the probe. In the application's main:
 //
-//	var probe = flag.Bool("healthcheck", false, "consulta o /health local e sai 0/1")
+//	var probe = flag.Bool("healthcheck", false, "queries the local /health and exits 0/1")
 //	// ...
 //	if *probe {
-//		if err := agui.CheckHealth("http://127.0.0.1:" + porta + "/health"); err != nil {
+//		if err := agui.CheckHealth("http://127.0.0.1:" + port + "/health"); err != nil {
 //			fmt.Fprintln(os.Stderr, err)
 //			os.Exit(1)
 //		}
 //		return
 //	}
+//
+// This tests the real endpoint, unlike a healthcheck that only opens a TCP
+// socket and reports "healthy" with the agent broken.
+//
+// PT: CheckHealth bate no /health de um servidor e devolve erro se ele não estiver
+// saudável.
+//
+// Existe para a sonda de containers distroless, que não têm shell nem curl: o
+// próprio binário vira a sonda. No main da aplicação, use o padrão do exemplo
+// acima.
 //
 // Isto testa o endpoint de verdade, diferente de um healthcheck que só abre um
 // socket TCP e reporta "healthy" com o agente quebrado.
@@ -156,7 +200,13 @@ func CheckHealth(url string) error {
 	return nil
 }
 
-// Addr monta o endereço de escuta a partir de HOST e PORT, caindo nos padrões
+// Addr builds the listen address from HOST and PORT, falling back to the
+// defaults when they are not set.
+//
+// It is the convenience that avoids rewriting the same environment read in
+// every main; whoever wants to control it builds the addr themselves.
+//
+// PT: Addr monta o endereço de escuta a partir de HOST e PORT, caindo nos padrões
 // quando não estiverem definidos.
 //
 // É a conveniência que evita reescrever a mesma leitura de ambiente em todo

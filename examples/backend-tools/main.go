@@ -1,16 +1,27 @@
-// Command backend-tools mostra os três tipos de tool que um agente AG-UI
-// distingue, e o estado compartilhado.
+// Command backend-tools shows the three kinds of tool an AG-UI agent
+// distinguishes, plus shared state.
 //
-//   - buscar_voos  — tool de servidor com schema INFERIDO das struct tags.
-//   - definir_tema — tool de servidor que escreve no estado compartilhado, o que
-//     faz o `agent.state` do cliente mudar sozinho.
-//   - mostrar_grafico — tool de CLIENTE declarada no servidor: o modelo a vê,
-//     mas quem executa é o React; o run termina devolvendo o controle.
+//   - search_flights  — server tool with the schema INFERRED from struct tags.
+//   - set_theme — server tool that writes to the shared state, which makes the
+//     client's `agent.state` change on its own.
+//   - show_chart — CLIENT tool declared on the server: the model sees it, but
+//     React is who executes it; the run ends handing back control.
 //
-// Rodar:
+// Run:
 //
 //	export MODEL_PROVIDER=openai MODEL=gpt-4o-mini OPENAI_API_KEY=sk-...
 //	go run ./examples/backend-tools
+//
+// PT: Command backend-tools mostra os três tipos de tool que um agente AG-UI
+// distingue, e o estado compartilhado.
+//
+//   - search_flights  — tool de servidor com schema INFERIDO das struct tags.
+//   - set_theme — tool de servidor que escreve no estado compartilhado, o que
+//     faz o `agent.state` do cliente mudar sozinho.
+//   - show_chart — tool de CLIENTE declarada no servidor: o modelo a vê,
+//     mas quem executa é o React; o run termina devolvendo o controle.
+//
+// O exemplo acima mostra como rodar.
 package main
 
 import (
@@ -25,35 +36,41 @@ import (
 	"github.com/ricardogayer/go-agui/model"
 )
 
-// BuscaVoos é a entrada da tool. O JSON Schema anunciado ao modelo sai daqui —
+// FlightSearch is the tool's input. The JSON Schema announced to the model
+// comes from here — there is no hand-written schema.
+//
+// PT: FlightSearch é a entrada da tool. O JSON Schema anunciado ao modelo sai daqui —
 // não há schema escrito à mão.
-type BuscaVoos struct {
-	Origem  string `json:"origem"  jsonschema:"required,description=Código IATA de origem (ex.: GRU)"`
-	Destino string `json:"destino" jsonschema:"required,description=Código IATA de destino (ex.: JFK)"`
+type FlightSearch struct {
+	Origin      string `json:"origin"  jsonschema:"required,description=Origin IATA code (e.g. GRU)"`
+	Destination string `json:"destination" jsonschema:"required,description=Destination IATA code (e.g. JFK)"`
 }
 
-type Voo struct {
-	Companhia string `json:"companhia"`
-	Numero    string `json:"numero"`
-	Partida   string `json:"partida"`
-	Preco     string `json:"preco"`
+type Flight struct {
+	Airline   string `json:"airline"`
+	Number    string `json:"number"`
+	Departure string `json:"departure"`
+	Price     string `json:"price"`
 }
 
-func buscarVoos(_ context.Context, in BuscaVoos) ([]Voo, error) {
-	return []Voo{
-		{Companhia: "LATAM", Numero: "LA8084", Partida: "22:40", Preco: "R$ 3.120"},
-		{Companhia: "American", Numero: "AA974", Partida: "21:55", Preco: "R$ 2.870"},
+func searchFlights(_ context.Context, in FlightSearch) ([]Flight, error) {
+	return []Flight{
+		{Airline: "LATAM", Number: "LA8084", Departure: "22:40", Price: "$620"},
+		{Airline: "American", Number: "AA974", Departure: "21:55", Price: "$575"},
 	}, nil
 }
 
-type DefinirTema struct {
-	Tema string `json:"tema" jsonschema:"required,description=claro ou escuro"`
+type SetTheme struct {
+	Theme string `json:"theme" jsonschema:"required,description=light or dark"`
 }
 
-// definirTema escreve no estado compartilhado. O State aplica o patch E emite o
+// setTheme writes to the shared state. State applies the patch AND emits the
+// STATE_DELTA in the same operation, so the client never gets out of sync.
+//
+// PT: setTheme escreve no estado compartilhado. O State aplica o patch E emite o
 // STATE_DELTA na mesma operação, então o cliente nunca fica dessincronizado.
-func definirTema(ctx context.Context, in DefinirTema) (string, error) {
-	if err := agui.MustFromContext(ctx).State().Set("/tema", in.Tema); err != nil {
+func setTheme(ctx context.Context, in SetTheme) (string, error) {
+	if err := agui.MustFromContext(ctx).State().Set("/theme", in.Theme); err != nil {
 		return "", err
 	}
 	return `{"ok":true}`, nil
@@ -67,35 +84,37 @@ func main() {
 
 	ag := agui.Must(agui.New(ctx, m,
 		agui.WithSystemPrompt(
-			"Você ajuda a planejar viagens. Para voos, chame buscar_voos e depois "+
-				"apresente os resultados. Para gráficos, chame mostrar_grafico."),
+			"You help plan trips. For flights, call search_flights and then "+
+				"present the results. For charts, call show_chart."),
 		agui.WithTools(
-			agui.NewTool("buscar_voos", "Busca voos entre dois aeroportos.", buscarVoos),
-			agui.NewTool("definir_tema", "Muda o tema da interface.", definirTema),
-			// Só anuncia: quem executa é o cliente.
-			agui.NewClientTool("mostrar_grafico", "Renderiza um gráfico na tela.",
+			agui.NewTool("search_flights", "Searches flights between two airports.", searchFlights),
+			agui.NewTool("set_theme", "Changes the UI theme.", setTheme),
+			// Only announces it: the client is who executes it.
+			//
+			// PT: Só anuncia: quem executa é o cliente.
+			agui.NewClientTool("show_chart", "Renders a chart on screen.",
 				json.RawMessage(`{
 					"type": "object",
 					"properties": {
-						"titulo": {"type": "string"},
-						"pontos": {
+						"title": {"type": "string"},
+						"points": {
 							"type": "array",
 							"items": {
 								"type": "object",
 								"properties": {
-									"rotulo": {"type": "string"},
-									"valor":  {"type": "number"}
+									"label": {"type": "string"},
+									"value":  {"type": "number"}
 								}
 							}
 						}
 					},
-					"required": ["titulo", "pontos"]
+					"required": ["title", "points"]
 				}`)),
 		),
 		agui.WithHooks(agui.Hooks{
 			OnModelTurn: func(_ context.Context, t agui.TurnInfo) {
 				if t.Usage != nil {
-					log.Printf("turno %d: %d tokens em %s",
+					log.Printf("turn %d: %d tokens in %s",
 						t.Iteration, t.Usage.TotalTokens, t.Duration.Round(1e6))
 				}
 			},

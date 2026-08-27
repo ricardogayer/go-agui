@@ -1,4 +1,7 @@
-# CI mínimo: os mesmos alvos do Makefile que se roda localmente, nos quatro
+# Minimal CI: the same Makefile targets one runs locally, across the four
+# go.work modules. What passes here is what passes on a contributor's machine —
+# no step that exists only in CI.
+# PT: CI mínimo: os mesmos alvos do Makefile que se roda localmente, nos quatro
 # módulos do go.work. O que passa aqui é o que passa na máquina de quem
 # contribui — sem etapa que só exista no CI.
 name: ci

@@ -1,17 +1,26 @@
-// Package ginx monta um agente AG-UI num roteador Gin.
+// Package ginx mounts an AG-UI agent on a Gin router.
+//
+// The core (`agui`) speaks http.Handler and knows no framework; this package is
+// the convenience layer for Gin users, and it is a SEPARATE MODULE so that Gin
+// does not enter the go.mod of whoever uses chi, echo or plain net/http.
+//
+// Register the two routes of the contract on an existing router:
+//
+//	r := gin.New()
+//	ginx.Register(r, ag, "my_agent")
+//
+// Or bring everything up, which is what most people want:
+//
+//	log.Fatal(ginx.ListenAndServe(ctx, ":8000", ag, "my_agent"))
+//
+// PT: Package ginx monta um agente AG-UI num roteador Gin.
 //
 // O núcleo (`agui`) fala http.Handler e não conhece framework nenhum; este
 // pacote é a camada de conveniência para quem usa Gin, e é um MÓDULO À PARTE
 // para que o Gin não entre no go.mod de quem usa chi, echo ou net/http puro.
 //
-// Registrar as duas rotas do contrato num roteador existente:
-//
-//	r := gin.New()
-//	ginx.Register(r, ag, "meu_agente")
-//
-// Ou subir tudo, que é o que a maioria quer:
-//
-//	log.Fatal(ginx.ListenAndServe(ctx, ":8000", ag, "meu_agente"))
+// Os exemplos acima mostram como registrar as duas rotas do contrato num
+// roteador existente, ou subir tudo, que é o que a maioria quer.
 package ginx
 
 import (
@@ -22,7 +31,12 @@ import (
 	agui "github.com/ricardogayer/go-agui"
 )
 
-// Handler adapta o handler AG-UI para o Gin.
+// Handler adapts the AG-UI handler to Gin.
+//
+// gin.ResponseWriter implements http.Flusher and http.ResponseWriter, so SSE
+// streaming goes through the wrap without loss.
+//
+// PT: Handler adapta o handler AG-UI para o Gin.
 //
 // O gin.ResponseWriter implementa http.Flusher e http.ResponseWriter, então o
 // streaming SSE atravessa o wrap sem perda.
@@ -30,12 +44,22 @@ func Handler(r agui.Runner, opts ...agui.HandlerOption) gin.HandlerFunc {
 	return gin.WrapH(agui.Handler(r, opts...))
 }
 
-// Health adapta o handler de healthcheck para o Gin.
+// Health adapts the healthcheck handler to Gin.
+//
+// PT: Health adapta o handler de healthcheck para o Gin.
 func Health(agentName string) gin.HandlerFunc {
 	return gin.WrapH(agui.Health(agentName))
 }
 
-// Register monta `POST /` e `GET /health` no roteador.
+// Register mounts `POST /` and `GET /health` on the router.
+//
+// It also installs the normalization of `//health` — the path a probe written
+// against the Python backend uses, and which Gin's router refuses to register
+// directly ("handlers are already registered for path '/health'"), because it
+// normalizes the doubled slash before matching the route. See
+// [agui.NormalizeHealthPath].
+//
+// PT: Register monta `POST /` e `GET /health` no roteador.
 //
 // Também instala a normalização de `//health` — o caminho que uma sonda
 // escrita contra o backend Python usa, e que o roteador do Gin recusa registrar
@@ -47,7 +71,10 @@ func Register(r gin.IRouter, runner agui.Runner, agentName string, opts ...agui.
 	r.GET("/health", Health(agentName))
 }
 
-// Engine devolve um *gin.Engine pronto, em modo release, com Recovery, as duas
+// Engine returns a ready *gin.Engine, in release mode, with Recovery, the two
+// routes and — optionally — CORS.
+//
+// PT: Engine devolve um *gin.Engine pronto, em modo release, com Recovery, as duas
 // rotas e — opcionalmente — CORS.
 func Engine(runner agui.Runner, agentName string, opts ...Option) *gin.Engine {
 	cfg := &options{}
@@ -65,7 +92,10 @@ func Engine(runner agui.Runner, agentName string, opts ...Option) *gin.Engine {
 	return r
 }
 
-// ListenAndServe sobe o agente num servidor HTTP e o desliga graciosamente
+// ListenAndServe brings the agent up on an HTTP server and shuts it down
+// gracefully when ctx is cancelled.
+//
+// PT: ListenAndServe sobe o agente num servidor HTTP e o desliga graciosamente
 // quando ctx é cancelado.
 func ListenAndServe(ctx context.Context, addr string, runner agui.Runner, agentName string, opts ...Option) error {
 	cfg := &options{}
@@ -83,10 +113,18 @@ type options struct {
 	serve   []agui.ServeOption
 }
 
-// Option configura o roteador e o servidor deste pacote.
+// Option configures this package's router and server.
+//
+// PT: Option configura o roteador e o servidor deste pacote.
 type Option func(*options)
 
-// WithCORS liga um CORS permissivo, para depurar o backend direto do navegador.
+// WithCORS turns on a permissive CORS, to debug the backend straight from the
+// browser.
+//
+// Off by default: the CopilotKit runtime calls the backend server-side, so
+// there is no cross-origin in the normal path.
+//
+// PT: WithCORS liga um CORS permissivo, para depurar o backend direto do navegador.
 //
 // Desligado por padrão: o runtime CopilotKit chama o backend server-side, então
 // não há origem cruzada no caminho normal.
@@ -94,18 +132,25 @@ func WithCORS() Option {
 	return func(o *options) { o.cors = true }
 }
 
-// WithHandlerOptions repassa opções ao handler AG-UI (logger, contexto de
+// WithHandlerOptions passes options on to the AG-UI handler (logger, shutdown
+// context, dropped-event callback).
+//
+// PT: WithHandlerOptions repassa opções ao handler AG-UI (logger, contexto de
 // desligamento, callback de evento descartado).
 func WithHandlerOptions(opts ...agui.HandlerOption) Option {
 	return func(o *options) { o.handler = append(o.handler, opts...) }
 }
 
-// WithServeOptions repassa opções ao servidor HTTP.
+// WithServeOptions passes options on to the HTTP server.
+//
+// PT: WithServeOptions repassa opções ao servidor HTTP.
 func WithServeOptions(opts ...agui.ServeOption) Option {
 	return func(o *options) { o.serve = append(o.serve, opts...) }
 }
 
-// CORS devolve o middleware de CORS permissivo.
+// CORS returns the permissive CORS middleware.
+//
+// PT: CORS devolve o middleware de CORS permissivo.
 func CORS() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		h := c.Writer.Header()

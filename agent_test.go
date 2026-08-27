@@ -10,13 +10,13 @@ import (
 	"github.com/ricardogayer/go-agui/aguitest"
 )
 
-// ── o caminho mais simples: um turno de texto ────────────────────────────────
+// ── the simplest path: one text turn / o caminho mais simples: um turno de texto ──
 
-func TestTurnoDeTextoEmiteASequenciaDoAdaptadorPython(t *testing.T) {
-	m := aguitest.NewFakeModel(aguitest.Turn{Chunks: []string{"Olá", ", ", "mundo"}})
-	ag := novoAgente(t, m)
+func TestTextTurnEmitsThePythonAdapterSequence(t *testing.T) {
+	m := aguitest.NewFakeModel(aguitest.Turn{Chunks: []string{"Hello", ", ", "world"}})
+	ag := newAgent(t, m)
 
-	evs := aguitest.Run(t, ag, aguitest.Input("oi"))
+	evs := aguitest.Run(t, ag, aguitest.Input("hi"))
 
 	aguitest.RequireSequence(t, evs,
 		agui.EventRunStarted,
@@ -31,33 +31,33 @@ func TestTurnoDeTextoEmiteASequenciaDoAdaptadorPython(t *testing.T) {
 	)
 	aguitest.RequireBalanced(t, evs)
 
-	if got := aguitest.TextoConcatenado(evs); got != "Olá, mundo" {
-		t.Fatalf("texto concatenado = %q, esperava %q", got, "Olá, mundo")
+	if got := aguitest.ConcatenatedText(evs); got != "Hello, world" {
+		t.Fatalf("concatenated text = %q, want %q", got, "Hello, world")
 	}
 }
 
-// ── tools de servidor ────────────────────────────────────────────────────────
+// ── server tools / tools de servidor ─────────────────────────────────────────
 
-type argsSoma struct {
-	A int `json:"a" jsonschema:"description=primeira parcela"`
-	B int `json:"b" jsonschema:"description=segunda parcela"`
+type addArgs struct {
+	A int `json:"a" jsonschema:"description=first operand"`
+	B int `json:"b" jsonschema:"description=second operand"`
 }
 
-func toolSoma() agui.Tool {
-	return agui.NewTool("somar", "Soma dois números.",
-		func(_ context.Context, in argsSoma) (int, error) { return in.A + in.B, nil })
+func addTool() agui.Tool {
+	return agui.NewTool("add", "Adds two numbers.",
+		func(_ context.Context, in addArgs) (int, error) { return in.A + in.B, nil })
 }
 
-func TestToolDeServidorRodaAquiEOLacoContinua(t *testing.T) {
+func TestServerToolRunsHereAndTheLoopContinues(t *testing.T) {
 	m := aguitest.NewFakeModel(
 		aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{
-			{ID: "call_1", Name: "somar", Args: `{"a":2,"b":3}`},
+			{ID: "call_1", Name: "add", Args: `{"a":2,"b":3}`},
 		}},
-		aguitest.Turn{Text: "São 5."},
+		aguitest.Turn{Text: "It's 5."},
 	)
-	ag := novoAgente(t, m, agui.WithTools(toolSoma()))
+	ag := newAgent(t, m, agui.WithTools(addTool()))
 
-	evs := aguitest.Run(t, ag, aguitest.Input("quanto é 2+3?"))
+	evs := aguitest.Run(t, ag, aguitest.Input("what is 2+3?"))
 
 	aguitest.RequireBalanced(t, evs)
 	aguitest.RequireContains(t, evs,
@@ -65,90 +65,99 @@ func TestToolDeServidorRodaAquiEOLacoContinua(t *testing.T) {
 		agui.EventToolCallResult,
 		agui.EventTextMessageStart, agui.EventRunFinished)
 
-	res, ok := aguitest.Primeiro(evs, agui.EventToolCallResult)
+	res, ok := aguitest.First(evs, agui.EventToolCallResult)
 	if !ok {
-		t.Fatal("faltou o TOOL_CALL_RESULT")
+		t.Fatal("missing TOOL_CALL_RESULT")
 	}
 	if got := res.String("content"); got != "5" {
-		t.Fatalf("resultado da tool = %q, esperava %q", got, "5")
+		t.Fatalf("tool result = %q, want %q", got, "5")
 	}
 }
 
-func TestSchemaDaToolTipadaChegaAoModeloSemInfraestruturaJSONSchema(t *testing.T) {
+func TestTypedToolSchemaReachesTheModelWithoutJSONSchemaScaffolding(t *testing.T) {
 	m := aguitest.NewFakeModel(aguitest.Turn{Text: "ok"})
-	ag := novoAgente(t, m, agui.WithTools(toolSoma()))
+	ag := newAgent(t, m, agui.WithTools(addTool()))
 
-	_ = aguitest.Run(t, ag, aguitest.Input("oi"))
+	_ = aguitest.Run(t, ag, aguitest.Input("hi"))
 
 	bound := m.BoundTools()
 	if len(bound) == 0 {
-		t.Fatal("nenhuma tool foi ligada ao modelo")
+		t.Fatal("no tool was bound to the model")
 	}
-	// ParamsOneOf guarda o schema em campos não exportados; ToJSONSchema é o
+	// ParamsOneOf keeps the schema in unexported fields; ToJSONSchema is the
+	// accessor — which is also the path the provider uses.
+	//
+	// PT: ParamsOneOf guarda o schema em campos não exportados; ToJSONSchema é o
 	// acessor — que é também o caminho que o provedor usa.
 	js, err := bound[0][0].ParamsOneOf.ToJSONSchema()
 	if err != nil {
-		t.Fatalf("extraindo o JSON Schema: %v", err)
+		t.Fatalf("extracting the JSON Schema: %v", err)
 	}
 	raw, err := json.Marshal(js)
 	if err != nil {
-		t.Fatalf("serializando o schema: %v", err)
+		t.Fatalf("serializing the schema: %v", err)
 	}
-	// O reflector do Eino é configurado com DoNotReference e limpa $schema. Se
+	// Eino's reflector is configured with DoNotReference and strips $schema. If
+	// that changes in an update, the providers that reject this scaffolding
+	// start failing — and this test warns first.
+	//
+	// PT: O reflector do Eino é configurado com DoNotReference e limpa $schema. Se
 	// isso mudar numa atualização, os provedores que recusam essa
 	// infraestrutura passam a falhar — e este teste avisa antes.
-	for _, proibido := range []string{`"$ref"`, `"$defs"`, `"$schema"`} {
-		if strings.Contains(string(raw), proibido) {
-			t.Errorf("o schema da tool traz %s, que precisa ser saneado:\n%s", proibido, raw)
+	for _, forbidden := range []string{`"$ref"`, `"$defs"`, `"$schema"`} {
+		if strings.Contains(string(raw), forbidden) {
+			t.Errorf("the tool schema carries %s, which must be sanitized:\n%s", forbidden, raw)
 		}
 	}
-	if !strings.Contains(string(raw), "primeira parcela") {
-		t.Errorf("a descrição da struct tag não chegou ao schema:\n%s", raw)
+	if !strings.Contains(string(raw), "first operand") {
+		t.Errorf("the struct tag description did not reach the schema:\n%s", raw)
 	}
 }
 
-func TestToolInexistenteViraResultadoDeErroEOLacoSegue(t *testing.T) {
+func TestUnknownToolBecomesAnErrorResultAndTheLoopContinues(t *testing.T) {
 	m := aguitest.NewFakeModel(
 		aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{
-			{ID: "call_1", Name: "inexistente", Args: `{}`},
+			{ID: "call_1", Name: "nonexistent", Args: `{}`},
 		}},
-		aguitest.Turn{Text: "desculpe"},
+		aguitest.Turn{Text: "sorry"},
 	)
-	ag := novoAgente(t, m, agui.WithTools(toolSoma()))
+	ag := newAgent(t, m, agui.WithTools(addTool()))
 
-	evs := aguitest.Run(t, ag, aguitest.Input("faça algo"))
+	evs := aguitest.Run(t, ag, aguitest.Input("do something"))
 
 	aguitest.RequireBalanced(t, evs)
-	res, ok := aguitest.Primeiro(evs, agui.EventToolCallResult)
+	res, ok := aguitest.First(evs, agui.EventToolCallResult)
 	if !ok {
-		t.Fatal("uma tool desconhecida deve ser RESPONDIDA, não ignorada")
+		t.Fatal("an unknown tool must be ANSWERED, not ignored")
 	}
 	if !strings.Contains(res.String("content"), "unknown tool") {
-		t.Fatalf("resultado = %q, esperava mencionar 'unknown tool'", res.String("content"))
+		t.Fatalf("result = %q, want it to mention 'unknown tool'", res.String("content"))
 	}
-	// O run precisa terminar bem: o modelo se corrige no turno seguinte.
-	if evs[len(evs)-1].Tipo() != agui.EventRunFinished {
-		t.Fatalf("o run terminou com %s, esperava RUN_FINISHED", evs[len(evs)-1].Tipo())
+	// The run must end well: the model corrects itself on the next turn.
+	//
+	// PT: O run precisa terminar bem: o modelo se corrige no turno seguinte.
+	if evs[len(evs)-1].Type() != agui.EventRunFinished {
+		t.Fatalf("the run ended with %s, want RUN_FINISHED", evs[len(evs)-1].Type())
 	}
 }
 
-// ── tools de frontend: o hand-back ───────────────────────────────────────────
+// ── frontend tools: the hand-back / tools de frontend: o hand-back ───────────
 
-func TestToolDeFrontendDevolveOControleAoCliente(t *testing.T) {
+func TestFrontendToolHandsControlBackToTheClient(t *testing.T) {
 	m := aguitest.NewFakeModel(aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{
-		{ID: "call_1", Name: "mostrarCartao", Args: `{"titulo":"oi"}`},
+		{ID: "call_1", Name: "showCard", Args: `{"title":"hi"}`},
 	}})
-	ag := novoAgente(t, m, agui.WithTools(toolSoma()))
+	ag := newAgent(t, m, agui.WithTools(addTool()))
 
-	in := aguitest.Input("mostre um cartão")
+	in := aguitest.Input("show a card")
 	in.Tools = []agui.ClientTool{{
-		Name:        "mostrarCartao",
-		Description: "Renderiza um cartão.",
+		Name:        "showCard",
+		Description: "Renders a card.",
 		Parameters: map[string]any{
 			"$schema": "https://json-schema.org/draft/2020-12/schema",
 			"type":    "object",
 			"properties": map[string]any{
-				"titulo": map[string]any{"type": "string"},
+				"title": map[string]any{"type": "string"},
 			},
 		},
 	}}
@@ -156,153 +165,163 @@ func TestToolDeFrontendDevolveOControleAoCliente(t *testing.T) {
 	evs := aguitest.Run(t, ag, in)
 
 	aguitest.RequireBalanced(t, evs)
-	// O servidor NÃO executa: não há TOOL_CALL_RESULT.
-	if _, ok := aguitest.Primeiro(evs, agui.EventToolCallResult); ok {
-		t.Fatal("o servidor não pode executar uma tool de frontend")
+	// The server does NOT execute it: there is no TOOL_CALL_RESULT.
+	//
+	// PT: O servidor NÃO executa: não há TOOL_CALL_RESULT.
+	if _, ok := aguitest.First(evs, agui.EventToolCallResult); ok {
+		t.Fatal("the server must not execute a frontend tool")
 	}
-	if evs[len(evs)-1].Tipo() != agui.EventRunFinished {
-		t.Fatalf("terminou com %s, esperava RUN_FINISHED", evs[len(evs)-1].Tipo())
+	if evs[len(evs)-1].Type() != agui.EventRunFinished {
+		t.Fatalf("ended with %s, want RUN_FINISHED", evs[len(evs)-1].Type())
 	}
-	// A tool de frontend precisa ter sido oferecida ao modelo junto das de backend.
-	nomes := m.LastBoundNames()
-	if !contem(nomes, "somar") || !contem(nomes, "mostrarCartao") {
-		t.Fatalf("tools ligadas = %v, esperava conter 'somar' e 'mostrarCartao'", nomes)
+	// The frontend tool must have been offered to the model alongside the backend ones.
+	//
+	// PT: A tool de frontend precisa ter sido oferecida ao modelo junto das de backend.
+	names := m.LastBoundNames()
+	if !contains(names, "add") || !contains(names, "showCard") {
+		t.Fatalf("bound tools = %v, want to contain 'add' and 'showCard'", names)
 	}
-	// E o `$schema` do Zod precisa ter sido removido.
+	// And Zod's `$schema` must have been removed.
+	//
+	// PT: E o `$schema` do Zod precisa ter sido removido.
 	raw, _ := json.Marshal(m.BoundTools()[0])
 	if strings.Contains(string(raw), `"$schema"`) {
-		t.Errorf("o $schema do Zod chegou ao provedor:\n%s", raw)
+		t.Errorf("Zod's $schema reached the provider:\n%s", raw)
 	}
 }
 
-func TestToolDeFrontendComSchemaInvalidoEDescartadaSemDerrubarORun(t *testing.T) {
+func TestFrontendToolWithInvalidSchemaIsDroppedWithoutFailingTheRun(t *testing.T) {
 	m := aguitest.NewFakeModel(aguitest.Turn{Text: "ok"})
-	ag := novoAgente(t, m)
+	ag := newAgent(t, m)
 
-	in := aguitest.Input("oi")
+	in := aguitest.Input("hi")
 	in.Tools = []agui.ClientTool{
-		{Name: "quebrada", Parameters: "isto não é um schema"},
-		{Name: "boa", Parameters: map[string]any{"type": "object"}},
+		{Name: "broken", Parameters: "this is not a schema"},
+		{Name: "good", Parameters: map[string]any{"type": "object"}},
 	}
 
 	evs := aguitest.Run(t, ag, in)
 
-	// Um useFrontendTool com Zod quebrado não pode matar a conversa inteira.
-	if evs[len(evs)-1].Tipo() != agui.EventRunFinished {
-		t.Fatalf("terminou com %s, esperava RUN_FINISHED", evs[len(evs)-1].Tipo())
+	// A useFrontendTool with broken Zod must not kill the whole conversation.
+	//
+	// PT: Um useFrontendTool com Zod quebrado não pode matar a conversa inteira.
+	if evs[len(evs)-1].Type() != agui.EventRunFinished {
+		t.Fatalf("ended with %s, want RUN_FINISHED", evs[len(evs)-1].Type())
 	}
-	nomes := m.LastBoundNames()
-	if contem(nomes, "quebrada") {
-		t.Errorf("a tool inválida foi oferecida ao modelo: %v", nomes)
+	names := m.LastBoundNames()
+	if contains(names, "broken") {
+		t.Errorf("the invalid tool was offered to the model: %v", names)
 	}
-	if !contem(nomes, "boa") {
-		t.Errorf("a tool válida foi descartada junto: %v", nomes)
+	if !contains(names, "good") {
+		t.Errorf("the valid tool was dropped along with it: %v", names)
 	}
 }
 
-// ── contexto da requisição ───────────────────────────────────────────────────
+// ── request context / contexto da requisição ─────────────────────────────────
 
-func TestContextoDaRequisicaoViraBlocoDeSistema(t *testing.T) {
+func TestRequestContextBecomesASystemBlock(t *testing.T) {
 	m := aguitest.NewFakeModel(aguitest.Turn{Text: "ok"})
-	ag := novoAgente(t, m)
+	ag := newAgent(t, m)
 
-	in := aguitest.Input("oi")
-	in.Context = []agui.Context{{Description: "catálogo", Value: "Card, Row, Metric"}}
+	in := aguitest.Input("hi")
+	in.Context = []agui.Context{{Description: "catalog", Value: "Card, Row, Metric"}}
 
 	_ = aguitest.Run(t, ag, in)
 
-	var achou bool
+	var found bool
 	for _, msg := range m.LastCall() {
 		if strings.HasPrefix(msg.Content, "App Context:\n") &&
 			strings.Contains(msg.Content, "Card, Row, Metric") {
-			achou = true
+			found = true
 		}
 	}
-	if !achou {
-		t.Fatalf("o bloco App Context não chegou ao modelo; mensagens: %+v", m.LastCall())
+	if !found {
+		t.Fatalf("the App Context block did not reach the model; messages: %+v", m.LastCall())
 	}
 }
 
-func TestNoContextDesligaOBlocoDeContexto(t *testing.T) {
+func TestNoContextDisablesTheContextBlock(t *testing.T) {
 	m := aguitest.NewFakeModel(aguitest.Turn{Text: "ok"})
-	ag := novoAgente(t, m, agui.NoContext())
+	ag := newAgent(t, m, agui.NoContext())
 
-	in := aguitest.Input("oi")
-	in.Context = []agui.Context{{Description: "catálogo", Value: "Card"}}
+	in := aguitest.Input("hi")
+	in.Context = []agui.Context{{Description: "catalog", Value: "Card"}}
 
 	_ = aguitest.Run(t, ag, in)
 
 	for _, msg := range m.LastCall() {
 		if strings.Contains(msg.Content, "App Context:") {
-			t.Fatal("NoContext não deveria repassar o contexto")
+			t.Fatal("NoContext should not forward the context")
 		}
 	}
 }
 
-// ── construção ───────────────────────────────────────────────────────────────
+// ── construction / construção ────────────────────────────────────────────────
 
-func TestNewAgregaOsErrosDeTodasAsToolsDeUmaVez(t *testing.T) {
+func TestNewAggregatesAllToolErrorsAtOnce(t *testing.T) {
 	m := aguitest.NewFakeModel()
 	_, err := agui.New(context.Background(), m, agui.WithTools(
-		agui.NewRawTool("primeira", "d", json.RawMessage(`{ isto não é json }`), nada),
-		agui.NewRawTool("segunda", "d", json.RawMessage(`{ também não }`), nada),
+		agui.NewRawTool("first", "d", json.RawMessage(`{ this is not json }`), noop),
+		agui.NewRawTool("second", "d", json.RawMessage(`{ neither is this }`), noop),
 	))
 	if err == nil {
-		t.Fatal("esperava erro de construção")
+		t.Fatal("expected a construction error")
 	}
-	for _, nome := range []string{"primeira", "segunda"} {
-		if !strings.Contains(err.Error(), nome) {
-			t.Errorf("o erro não menciona a tool %q: %v", nome, err)
+	for _, name := range []string{"first", "second"} {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("the error does not mention tool %q: %v", name, err)
 		}
 	}
 }
 
-func TestNewRecusaToolsComNomeRepetido(t *testing.T) {
+func TestNewRejectsDuplicateToolNames(t *testing.T) {
 	m := aguitest.NewFakeModel()
-	_, err := agui.New(context.Background(), m, agui.WithTools(toolSoma(), toolSoma()))
-	if err == nil || !strings.Contains(err.Error(), "duas vezes") {
-		t.Fatalf("esperava erro de nome duplicado, veio: %v", err)
+	_, err := agui.New(context.Background(), m, agui.WithTools(addTool(), addTool()))
+	if err == nil || !strings.Contains(err.Error(), "registered twice") {
+		t.Fatalf("expected a duplicate name error, got: %v", err)
 	}
 }
 
-func TestNewRecusaMaxIterationsForaDaFaixa(t *testing.T) {
+func TestNewRejectsMaxIterationsOutOfRange(t *testing.T) {
 	m := aguitest.NewFakeModel()
 	for _, n := range []int{0, -1, agui.MaxIterationsCeiling + 1} {
 		if _, err := agui.New(context.Background(), m, agui.WithMaxIterations(n)); err == nil {
-			t.Errorf("WithMaxIterations(%d) deveria falhar", n)
+			t.Errorf("WithMaxIterations(%d) should fail", n)
 		}
 	}
 }
 
-func TestNaoConvergirTerminaComRunError(t *testing.T) {
-	// O modelo insiste na mesma tool para sempre.
+func TestNonConvergenceEndsWithRunError(t *testing.T) {
+	// The model insists on the same tool forever.
+	//
+	// PT: O modelo insiste na mesma tool para sempre.
 	m := aguitest.NewFakeModel(aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{
-		{ID: "call_1", Name: "somar", Args: `{"a":1,"b":1}`},
+		{ID: "call_1", Name: "add", Args: `{"a":1,"b":1}`},
 	}})
-	ag := novoAgente(t, m, agui.WithTools(toolSoma()), agui.WithMaxIterations(2))
+	ag := newAgent(t, m, agui.WithTools(addTool()), agui.WithMaxIterations(2))
 
-	evs := aguitest.Run(t, ag, aguitest.Input("some para sempre"))
+	evs := aguitest.Run(t, ag, aguitest.Input("add forever"))
 
 	aguitest.RequireBalanced(t, evs)
-	if evs[len(evs)-1].Tipo() != agui.EventRunError {
-		t.Fatalf("terminou com %s, esperava RUN_ERROR", evs[len(evs)-1].Tipo())
+	if evs[len(evs)-1].Type() != agui.EventRunError {
+		t.Fatalf("ended with %s, want RUN_ERROR", evs[len(evs)-1].Type())
 	}
 }
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+// ── helpers / auxiliares ─────────────────────────────────────────────────────
 
-func novoAgente(t *testing.T, m *aguitest.FakeModel, opts ...agui.Option) *agui.Agent {
+func newAgent(t *testing.T, m *aguitest.FakeModel, opts ...agui.Option) *agui.Agent {
 	t.Helper()
 	ag, err := agui.New(context.Background(), m, opts...)
 	if err != nil {
-		t.Fatalf("construindo o agente: %v", err)
+		t.Fatalf("building the agent: %v", err)
 	}
 	return ag
 }
 
-func nada(context.Context, string) (string, error) { return "", nil }
+func noop(context.Context, string) (string, error) { return "", nil }
 
-func contem(hay []string, needle string) bool {
+func contains(hay []string, needle string) bool {
 	for _, s := range hay {
 		if s == needle {
 			return true

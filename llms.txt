@@ -51,7 +51,7 @@ Opções:
 - `WithMessagePreprocessor(f)` — última transformação nas mensagens antes de cada chamada ao modelo (truncar histórico, few-shots, redigir dados sensíveis).
 - `WithState(f StateFactory)` — troca a construção do estado compartilhado do run.
 - `WithHooks(h Hooks)` — observadores do run.
-- `WithStepNames(modelo, tools)` — rótulos dos `STEP_STARTED`/`STEP_FINISHED` (padrões `"model"` e `"tools"`).
+- `WithStepNames(model, tools)` — rótulos dos `STEP_STARTED`/`STEP_FINISHED` (padrões `"model"` e `"tools"`).
 
 ## Chat model — módulo model
 
@@ -79,12 +79,12 @@ Uma tool é um `tool.BaseTool` do Eino. A interface decide quem executa:
 
 ```go
 // Schema inferido dos tipos (tags json + jsonschema). Sem $ref/$defs/$schema.
-type BuscaVoos struct {
-	Origem  string `json:"origem"  jsonschema:"required,description=Código IATA de origem"`
-	Destino string `json:"destino" jsonschema:"required,description=Código IATA de destino"`
+type FlightSearch struct {
+	Origin      string `json:"origin"  jsonschema:"required,description=Código IATA de origem"`
+	Destination string `json:"destination" jsonschema:"required,description=Código IATA de destino"`
 }
-agui.NewTool("buscar_voos", "Busca voos entre dois aeroportos.",
-	func(ctx context.Context, in BuscaVoos) ([]Voo, error) { return buscar(in.Origem, in.Destino), nil })
+agui.NewTool("search_flights", "Busca voos entre dois aeroportos.",
+	func(ctx context.Context, in FlightSearch) ([]Flight, error) { return search(in.Origin, in.Destination), nil })
 
 // Schema escrito à mão (params é json.RawMessage de propósito, para o compilador pegar troca de ordem).
 agui.NewRawTool("display_flights", descricao, json.RawMessage(schemaJSON),
@@ -94,20 +94,20 @@ agui.NewRawTool("display_flights", descricao, json.RawMessage(schemaJSON),
 agui.NewToolFromInfo(info, fn)
 
 // Tool de cliente: anuncia o schema, não executa; o run termina e o controle volta ao frontend.
-agui.NewClientTool("mostrar_grafico", "Renderiza um gráfico na tela.",
+agui.NewClientTool("show_chart", "Renderiza um gráfico na tela.",
 	json.RawMessage(`{"type":"object","properties":{"titulo":{"type":"string"}}}`))
 ```
 
-Os construtores NÃO devolvem `error`: o erro fica retido na tool e é colhido por `agui.New`, agregado e nomeado (ex.: `tool "b": schema de parâmetros inválido: ...`). Isso permite `WithTools(NewTool(...), NewRawTool(...))` sem cerimônia.
+Os construtores NÃO devolvem `error`: o erro fica retido na tool e é colhido por `agui.New`, agregado e nomeado (ex.: `tool "b": invalid parameter schema: ...`). Isso permite `WithTools(NewTool(...), NewRawTool(...))` sem cerimônia.
 
 ### Dentro de uma tool — RunContext
 
 A função recebe só `(ctx, entrada)`; o resto do run chega pelo contexto:
 
 ```go
-func trocarTema(ctx context.Context, in TemaArgs) (string, error) {
+func changeTheme(ctx context.Context, in ThemeArgs) (string, error) {
 	rc := agui.MustFromContext(ctx)
-	rc.State().Set("/tema", in.Tema) // aplica E emite o STATE_DELTA
+	rc.State().Set("/theme", in.Theme) // aplica E emite o STATE_DELTA
 	return `{"ok":true}`, nil
 }
 ```
@@ -122,7 +122,7 @@ Documento JSON livre espelhado no `agent.state` do cliente. Contrato: a operaç�
 st.Set("/todos/0/feito", true) // aplica + emite (usa `add` da RFC 6902: cria ou substitui)
 st.Remove("/rascunho")
 st.Apply(ops)                  // lote atômico: ou tudo, ou nada
-v, ok := st.Get("/tema")       // JSON Pointer (RFC 6901)
+v, ok := st.Get("/theme")       // JSON Pointer (RFC 6901)
 snap := st.Snapshot()          // cópia profunda
 ```
 
@@ -142,10 +142,10 @@ O padrão semeia com `RunAgentInput.state` e devolve intacto — o estado do cli
 Uma tool pausa o run devolvendo `agui.Interrupt`; o cliente responde em `RunAgentInput.resume`; na passagem seguinte a tool recupera a resposta:
 
 ```go
-func aprovarCompra(ctx context.Context, in Compra) (string, error) {
+func approvePurchase(ctx context.Context, in Purchase) (string, error) {
 	rc := agui.MustFromContext(ctx)
 	if payload, ok := rc.ResumeFor(rc.ToolCallID()); ok {
-		return processar(in, payload) // o humano respondeu
+		return process(in, payload) // o humano respondeu
 	}
 	return "", agui.Interrupt(agui.InterruptRequest{
 		Reason:  "needs_approval",
@@ -163,8 +163,8 @@ Monta operações A2UI v0.9 que uma tool de backend devolve como resultado (cont
 ```go
 import "github.com/ricardogayer/go-agui/a2ui"
 
-func mostrarVoos(ctx context.Context, in BuscaVoos) (string, error) {
-	voos := buscar(in.Origem, in.Destino)
+func showFlights(ctx context.Context, in FlightSearch) (string, error) {
+	voos := search(in.Origin, in.Destination)
 	return a2ui.Render(
 		a2ui.CreateSurface("voos", "copilotkit://app-dashboard-catalog"),
 		a2ui.UpdateComponents("voos", []a2ui.Component{
@@ -260,17 +260,17 @@ agui.ListenAndServe(ctx, addr, h, opts...) // servidor com shutdown gracioso
 
 ```go
 m := aguitest.NewFakeModel(
-	aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{{ID: "c1", Name: "somar", Args: `{"a":2,"b":3}`}}},
-	aguitest.Turn{Text: "São 5."},
+	aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{{ID: "c1", Name: "add", Args: `{"a":2,"b":3}`}}},
+	aguitest.Turn{Text: "That is 5."},
 )
-ag := agui.Must(agui.New(ctx, m, agui.WithTools(toolSoma())))
+ag := agui.Must(agui.New(ctx, m, agui.WithTools(addTool())))
 
-evs := aguitest.Run(t, ag, aguitest.Input("quanto é 2+3?"))
+evs := aguitest.Run(t, ag, aguitest.Input("what is 2+3?"))
 aguitest.RequireBalanced(t, evs) // todo START tem END, sem sobreposição, UM terminal no fim
 aguitest.RequireContains(t, evs, agui.EventToolCallResult, agui.EventRunFinished)
 ```
 
-Também: `RequireSequence` (sequência exata), `Collect`/`ParseSSE` (exercitar um `http.Handler`), `Primeiro`/`Todos`/`Tipos`/`TextoConcatenado`, `FakeModel.Calls()` (mensagens que o modelo recebeu) e `BoundTools()` (tools ligadas) — para afirmar sobre o que o agente MONTOU, não só o que emitiu.
+Também: `RequireSequence` (sequência exata), `Collect`/`ParseSSE` (exercitar um `http.Handler`), `First`/`All`/`Types`/`ConcatenatedText`, `FakeModel.Calls()` (mensagens que o modelo recebeu) e `BoundTools()` (tools ligadas) — para afirmar sobre o que o agente MONTOU, não só o que emitiu.
 
 ## Armadilhas do protocolo que a biblioteca já resolve
 

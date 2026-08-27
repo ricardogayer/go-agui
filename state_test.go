@@ -11,238 +11,262 @@ import (
 	"github.com/ricardogayer/go-agui/aguitest"
 )
 
-func TestStateAplicaEEmiteAMesmaOperacao(t *testing.T) {
-	// Este é O invariante do State: o patch aplicado localmente é exatamente o
+func TestStateAppliesAndEmitsTheSameOperation(t *testing.T) {
+	// This is THE invariant of State: the patch applied locally is exactly what
+	// goes on the wire. A client that starts from the STATE_SNAPSHOT and applies the
+	// STATE_DELTAs in order rebuilds the server's document.
+	//
+	// PT: Este é O invariante do State: o patch aplicado localmente é exatamente o
 	// que vai no fio. Um cliente que parta do STATE_SNAPSHOT e aplique os
 	// STATE_DELTA em ordem reconstrói o documento do servidor.
-	tool := agui.NewTool("marcar", "Marca um item.",
+	tool := agui.NewTool("mark", "Marks an item.",
 		func(ctx context.Context, _ struct{}) (string, error) {
 			st := agui.MustFromContext(ctx).State()
-			if err := st.Set("/feito", true); err != nil {
+			if err := st.Set("/done", true); err != nil {
 				return "", err
 			}
 			return `{"ok":true}`, nil
 		})
 
 	m := aguitest.NewFakeModel(
-		aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{{ID: "c1", Name: "marcar", Args: `{}`}}},
-		aguitest.Turn{Text: "pronto"},
+		aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{{ID: "c1", Name: "mark", Args: `{}`}}},
+		aguitest.Turn{Text: "done"},
 	)
-	ag := novoAgente(t, m, agui.WithTools(tool))
+	ag := newAgent(t, m, agui.WithTools(tool))
 
-	in := aguitest.Input("marque")
-	in.State = map[string]any{"feito": false, "titulo": "tarefa"}
+	in := aguitest.Input("mark it")
+	in.State = map[string]any{"done": false, "title": "task"}
 
 	evs := aguitest.Run(t, ag, in)
 	aguitest.RequireBalanced(t, evs)
 
-	// O delta emitido...
-	delta, ok := aguitest.Primeiro(evs, agui.EventStateDelta)
+	// The emitted delta...
+	//
+	// PT: O delta emitido...
+	delta, ok := aguitest.First(evs, agui.EventStateDelta)
 	if !ok {
-		t.Fatal("faltou o STATE_DELTA")
+		t.Fatal("missing STATE_DELTA")
 	}
 	var ops []agui.PatchOp
 	remarshal(t, delta["delta"], &ops)
-	if len(ops) != 1 || ops[0].Op != "add" || ops[0].Path != "/feito" || ops[0].Value != true {
-		t.Fatalf("delta inesperado: %+v", ops)
+	if len(ops) != 1 || ops[0].Op != "add" || ops[0].Path != "/done" || ops[0].Value != true {
+		t.Fatalf("unexpected delta: %+v", ops)
 	}
 
-	// ...e o snapshot final têm de concordar.
-	snap, ok := ultimo(evs, agui.EventStateSnapshot)
+	// ...and the final snapshot must agree.
+	//
+	// PT: ...e o snapshot final têm de concordar.
+	snap, ok := last(evs, agui.EventStateSnapshot)
 	if !ok {
-		t.Fatal("faltou o STATE_SNAPSHOT")
+		t.Fatal("missing STATE_SNAPSHOT")
 	}
 	var doc map[string]any
 	remarshal(t, snap["snapshot"], &doc)
-	esperado := map[string]any{"feito": true, "titulo": "tarefa"}
-	if !reflect.DeepEqual(doc, esperado) {
-		t.Fatalf("estado final = %+v, esperava %+v", doc, esperado)
+	want := map[string]any{"done": true, "title": "task"}
+	if !reflect.DeepEqual(doc, want) {
+		t.Fatalf("final state = %+v, expected %+v", doc, want)
 	}
 }
 
-func TestEstadoDoClienteNaoRegridePorPassarPeloAgente(t *testing.T) {
-	// O padrão é eco puro: um agente sem estado próprio devolve o que recebeu.
+func TestClientStateDoesNotRegressThroughTheAgent(t *testing.T) {
+	// The default is a pure echo: an agent with no state of its own returns what it received.
+	// Without this, the client's `agent.state` would be reset on every message.
+	//
+	// PT: O padrão é eco puro: um agente sem estado próprio devolve o que recebeu.
 	// Sem isto, o `agent.state` do cliente seria zerado a cada mensagem.
 	m := aguitest.NewFakeModel(aguitest.Turn{Text: "ok"})
-	ag := novoAgente(t, m)
+	ag := newAgent(t, m)
 
-	in := aguitest.Input("oi")
-	in.State = map[string]any{"tema": "escuro", "itens": []any{"a", "b"}}
+	in := aguitest.Input("hi")
+	in.State = map[string]any{"theme": "dark", "items": []any{"a", "b"}}
 
 	evs := aguitest.Run(t, ag, in)
 
-	snap, ok := ultimo(evs, agui.EventStateSnapshot)
+	snap, ok := last(evs, agui.EventStateSnapshot)
 	if !ok {
-		t.Fatal("faltou o STATE_SNAPSHOT")
+		t.Fatal("missing STATE_SNAPSHOT")
 	}
 	var doc map[string]any
 	remarshal(t, snap["snapshot"], &doc)
-	if doc["tema"] != "escuro" {
-		t.Fatalf("estado devolvido = %+v, esperava preservar tema=escuro", doc)
+	if doc["theme"] != "dark" {
+		t.Fatalf("returned state = %+v, expected theme=dark to be preserved", doc)
 	}
 }
 
-func TestStateSnapshotNuncaSaiComoNull(t *testing.T) {
-	// `null` não é um estado válido do lado do cliente.
+func TestStateSnapshotIsNeverNull(t *testing.T) {
+	// `null` is not a valid state on the client side.
+	//
+	// PT: `null` não é um estado válido do lado do cliente.
 	m := aguitest.NewFakeModel(aguitest.Turn{Text: "ok"})
-	ag := novoAgente(t, m)
+	ag := newAgent(t, m)
 
-	evs := aguitest.Run(t, ag, aguitest.Input("oi")) // sem State no input
+	evs := aguitest.Run(t, ag, aguitest.Input("hi")) // no State in the input (PT: sem State no input)
 
-	snap, ok := ultimo(evs, agui.EventStateSnapshot)
+	snap, ok := last(evs, agui.EventStateSnapshot)
 	if !ok {
-		t.Fatal("faltou o STATE_SNAPSHOT")
+		t.Fatal("missing STATE_SNAPSHOT")
 	}
 	if snap["snapshot"] == nil {
-		t.Fatal("o snapshot saiu como null")
+		t.Fatal("the snapshot came out as null")
 	}
 }
 
-func TestStateAplicaEmLoteDeFormaAtomica(t *testing.T) {
+func TestStateAppliesBatchesAtomically(t *testing.T) {
 	st := agui.NewState(map[string]any{"a": 1})
 
 	err := st.Apply([]agui.PatchOp{
 		{Op: "add", Path: "/b", Value: 2},
-		{Op: "remove", Path: "/inexistente"}, // falha
+		{Op: "remove", Path: "/nonexistent"}, // fails (PT: falha)
 	})
 	if err == nil {
-		t.Fatal("esperava erro do patch inválido")
+		t.Fatal("expected an error from the invalid patch")
 	}
-	// Nada pode ter sido aplicado: senão o cliente e o servidor divergem.
+	// Nothing may have been applied: otherwise client and server diverge.
+	//
+	// PT: Nada pode ter sido aplicado: senão o cliente e o servidor divergem.
 	if _, ok := st.Get("/b"); ok {
-		t.Fatal("o lote falhou mas aplicou parcialmente")
+		t.Fatal("the batch failed but was partially applied")
 	}
 }
 
-func TestStateGetResolveJSONPointer(t *testing.T) {
+func TestStateGetResolvesJSONPointer(t *testing.T) {
 	st := agui.NewState(map[string]any{
 		"todos": []any{
-			map[string]any{"id": "t1", "titulo": "comprar pão"},
+			map[string]any{"id": "t1", "title": "buy bread"},
 		},
-		"a/b": "barra escapada",
+		"a/b": "escaped slash",
 	})
 
-	casos := map[string]any{
-		"/todos/0/titulo": "comprar pão",
-		"/a~1b":           "barra escapada",
+	cases := map[string]any{
+		"/todos/0/title": "buy bread",
+		"/a~1b":          "escaped slash",
 	}
-	for path, esperado := range casos {
+	for path, want := range cases {
 		got, ok := st.Get(path)
-		if !ok || got != esperado {
-			t.Errorf("Get(%q) = %v, %v; esperava %v", path, got, ok, esperado)
+		if !ok || got != want {
+			t.Errorf("Get(%q) = %v, %v; expected %v", path, got, ok, want)
 		}
 	}
 	if _, ok := st.Get("/todos/9"); ok {
-		t.Error("índice fora do array deveria devolver false")
+		t.Error("index out of the array should return false")
 	}
 }
 
 // ── HITL ─────────────────────────────────────────────────────────────────────
 
-type argsCompra struct {
-	Valor int `json:"valor" jsonschema:"description=valor em reais"`
+type purchaseArgs struct {
+	Amount int `json:"amount" jsonschema:"description=amount in dollars"`
 }
 
-// toolComprar pede confirmação humana antes de agir. É o padrão documentado em
+// purchaseTool asks for human confirmation before acting. It is the pattern documented in
 // [agui.Interrupt].
-func toolComprar(t *testing.T, executou *int) agui.Tool {
-	return agui.NewTool("comprar", "Compra um item.",
-		func(ctx context.Context, in argsCompra) (string, error) {
+//
+// PT: purchaseTool pede confirmação humana antes de agir. É o padrão documentado em
+// [agui.Interrupt].
+func purchaseTool(t *testing.T, executed *int) agui.Tool {
+	return agui.NewTool("purchase", "Buys an item.",
+		func(ctx context.Context, in purchaseArgs) (string, error) {
 			rc := agui.MustFromContext(ctx)
 			if payload, ok := rc.ResumeFor(rc.ToolCallID()); ok {
-				*executou++
-				return `{"comprado":true,"aprovacao":` + mustJSON(t, payload) + `}`, nil
+				*executed++
+				return `{"purchased":true,"approval":` + mustJSON(t, payload) + `}`, nil
 			}
 			return "", agui.Interrupt(agui.InterruptRequest{
 				Reason:  "needs_approval",
-				Message: "Confirmar a compra?",
+				Message: "Confirm the purchase?",
 			})
 		})
 }
 
-func TestToolQuePedeDecisaoPausaORunComOutcomeDeInterrupt(t *testing.T) {
-	var executou int
+func TestToolRequestingADecisionPausesTheRunWithInterruptOutcome(t *testing.T) {
+	var executed int
 	m := aguitest.NewFakeModel(aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{
-		{ID: "call_1", Name: "comprar", Args: `{"valor":100}`},
+		{ID: "call_1", Name: "purchase", Args: `{"amount":100}`},
 	}})
-	ag := novoAgente(t, m, agui.WithTools(toolComprar(t, &executou)))
+	ag := newAgent(t, m, agui.WithTools(purchaseTool(t, &executed)))
 
-	evs := aguitest.Run(t, ag, aguitest.Input("compre"))
+	evs := aguitest.Run(t, ag, aguitest.Input("buy it"))
 
 	aguitest.RequireBalanced(t, evs)
-	if executou != 0 {
-		t.Fatal("a tool não pode ter agido antes da aprovação")
+	if executed != 0 {
+		t.Fatal("the tool must not have acted before the approval")
 	}
-	// A chamada fica SEM resposta de propósito: é ela que o cliente renderiza
+	// The call is left UNANSWERED on purpose: it is what the client renders
+	// as the question.
+	//
+	// PT: A chamada fica SEM resposta de propósito: é ela que o cliente renderiza
 	// como a pergunta.
-	if _, ok := aguitest.Primeiro(evs, agui.EventToolCallResult); ok {
-		t.Fatal("uma chamada pausada não pode ter TOOL_CALL_RESULT")
+	if _, ok := aguitest.First(evs, agui.EventToolCallResult); ok {
+		t.Fatal("a paused call must not have a TOOL_CALL_RESULT")
 	}
 
-	fim := evs[len(evs)-1]
-	if fim.Tipo() != agui.EventRunFinished {
-		t.Fatalf("terminou com %s, esperava RUN_FINISHED", fim.Tipo())
+	final := evs[len(evs)-1]
+	if final.Type() != agui.EventRunFinished {
+		t.Fatalf("ended with %s, expected RUN_FINISHED", final.Type())
 	}
-	raw := mustJSON(t, fim["outcome"])
+	raw := mustJSON(t, final["outcome"])
 	if !strings.Contains(raw, "needs_approval") || !strings.Contains(raw, "call_1") {
-		t.Fatalf("o outcome não descreve o interrupt: %s", raw)
+		t.Fatalf("the outcome does not describe the interrupt: %s", raw)
 	}
 }
 
-func TestRetomadaExecutaAToolPausadaSemChamarOModeloAntes(t *testing.T) {
-	var executou int
-	m := aguitest.NewFakeModel(aguitest.Turn{Text: "compra feita"})
-	ag := novoAgente(t, m, agui.WithTools(toolComprar(t, &executou)))
+func TestResumeRunsThePausedToolBeforeCallingTheModel(t *testing.T) {
+	var executed int
+	m := aguitest.NewFakeModel(aguitest.Turn{Text: "purchase done"})
+	ag := newAgent(t, m, agui.WithTools(purchaseTool(t, &executed)))
 
-	// O run seguinte: o cliente reenvia o histórico com a chamada pendente e a
+	// The next run: the client resends the history with the pending call and the
+	// decision. There is no store on the server — the call ARRIVES in the conversation.
+	//
+	// PT: O run seguinte: o cliente reenvia o histórico com a chamada pendente e a
 	// decisão. Não há store no servidor — a chamada CHEGA na conversa.
-	in := aguitest.Input("compre")
+	in := aguitest.Input("buy it")
 	in.Messages = append(in.Messages, agui.Message{
 		ID:   "msg_2",
 		Role: agui.RoleAssistant,
 		ToolCalls: []agui.ToolCall{{
 			ID:       "call_1",
 			Type:     "function",
-			Function: agui.FunctionCall{Name: "comprar", Arguments: `{"valor":100}`},
+			Function: agui.FunctionCall{Name: "purchase", Arguments: `{"amount":100}`},
 		}},
 	})
 	in.Resume = []agui.ResumeEntry{{
 		InterruptID: "call_1",
 		Status:      agui.ResumeStatusResolved,
-		Payload:     map[string]any{"por": "ricardo"},
+		Payload:     map[string]any{"by": "ricardo"},
 	}}
 
 	evs := aguitest.Run(t, ag, in)
 
 	aguitest.RequireBalanced(t, evs)
-	if executou != 1 {
-		t.Fatalf("a tool rodou %d vezes na retomada, esperava 1", executou)
+	if executed != 1 {
+		t.Fatalf("the tool ran %d times on resume, expected 1", executed)
 	}
-	res, ok := aguitest.Primeiro(evs, agui.EventToolCallResult)
+	res, ok := aguitest.First(evs, agui.EventToolCallResult)
 	if !ok {
-		t.Fatal("a retomada deveria fechar a chamada com um TOOL_CALL_RESULT")
+		t.Fatal("the resume should close the call with a TOOL_CALL_RESULT")
 	}
 	if !strings.Contains(res.String("content"), "ricardo") {
-		t.Fatalf("o payload da aprovação não chegou à tool: %s", res.String("content"))
+		t.Fatalf("the approval payload did not reach the tool: %s", res.String("content"))
 	}
-	if evs[len(evs)-1].Tipo() != agui.EventRunFinished {
-		t.Fatalf("terminou com %s, esperava RUN_FINISHED", evs[len(evs)-1].Tipo())
+	if evs[len(evs)-1].Type() != agui.EventRunFinished {
+		t.Fatalf("ended with %s, expected RUN_FINISHED", evs[len(evs)-1].Type())
 	}
 }
 
-func TestDecisaoCanceladaNaoExecutaAToolEOModeloSegue(t *testing.T) {
-	var executou int
-	m := aguitest.NewFakeModel(aguitest.Turn{Text: "tudo bem, cancelei"})
-	ag := novoAgente(t, m, agui.WithTools(toolComprar(t, &executou)))
+func TestCancelledDecisionDoesNotRunTheToolAndTheModelContinues(t *testing.T) {
+	var executed int
+	m := aguitest.NewFakeModel(aguitest.Turn{Text: "alright, cancelled"})
+	ag := newAgent(t, m, agui.WithTools(purchaseTool(t, &executed)))
 
-	in := aguitest.Input("compre")
+	in := aguitest.Input("buy it")
 	in.Messages = append(in.Messages, agui.Message{
 		ID:   "msg_2",
 		Role: agui.RoleAssistant,
 		ToolCalls: []agui.ToolCall{{
 			ID:       "call_1",
 			Type:     "function",
-			Function: agui.FunctionCall{Name: "comprar", Arguments: `{"valor":100}`},
+			Function: agui.FunctionCall{Name: "purchase", Arguments: `{"amount":100}`},
 		}},
 	})
 	in.Resume = []agui.ResumeEntry{{
@@ -252,41 +276,44 @@ func TestDecisaoCanceladaNaoExecutaAToolEOModeloSegue(t *testing.T) {
 
 	evs := aguitest.Run(t, ag, in)
 
-	// Sem isto o laço entraria em loop: a tool pediria interrupt de novo para
+	// Without this the loop would spin forever: the tool would request an interrupt
+	// again and again, because ResumeFor returns nothing on a cancellation.
+	//
+	// PT: Sem isto o laço entraria em loop: a tool pediria interrupt de novo para
 	// sempre, porque ResumeFor não devolve nada num cancelamento.
-	if executou != 0 {
-		t.Fatal("uma decisão cancelada não pode executar a tool")
+	if executed != 0 {
+		t.Fatal("a cancelled decision must not execute the tool")
 	}
-	res, ok := aguitest.Primeiro(evs, agui.EventToolCallResult)
+	res, ok := aguitest.First(evs, agui.EventToolCallResult)
 	if !ok {
-		t.Fatal("a chamada cancelada precisa ser respondida para o modelo seguir")
+		t.Fatal("the cancelled call needs an answer for the model to continue")
 	}
 	if !strings.Contains(res.String("content"), "cancelled") {
-		t.Fatalf("resultado = %q, esperava indicar cancelamento", res.String("content"))
+		t.Fatalf("result = %q, expected it to indicate cancellation", res.String("content"))
 	}
-	if evs[len(evs)-1].Tipo() != agui.EventRunFinished {
-		t.Fatalf("terminou com %s, esperava RUN_FINISHED", evs[len(evs)-1].Tipo())
+	if evs[len(evs)-1].Type() != agui.EventRunFinished {
+		t.Fatalf("ended with %s, expected RUN_FINISHED", evs[len(evs)-1].Type())
 	}
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-func ultimo(evs []aguitest.Evento, tipo agui.EventType) (aguitest.Evento, bool) {
-	todos := aguitest.Todos(evs, tipo)
-	if len(todos) == 0 {
+func last(evs []aguitest.Event, typ agui.EventType) (aguitest.Event, bool) {
+	all := aguitest.All(evs, typ)
+	if len(all) == 0 {
 		return nil, false
 	}
-	return todos[len(todos)-1], true
+	return all[len(all)-1], true
 }
 
 func remarshal(t *testing.T, from any, into any) {
 	t.Helper()
 	b, err := json.Marshal(from)
 	if err != nil {
-		t.Fatalf("serializando: %v", err)
+		t.Fatalf("marshaling: %v", err)
 	}
 	if err := json.Unmarshal(b, into); err != nil {
-		t.Fatalf("desserializando: %v", err)
+		t.Fatalf("unmarshaling: %v", err)
 	}
 }
 
@@ -294,7 +321,7 @@ func mustJSON(t *testing.T, v any) string {
 	t.Helper()
 	b, err := json.Marshal(v)
 	if err != nil {
-		t.Fatalf("serializando: %v", err)
+		t.Fatalf("marshaling: %v", err)
 	}
 	return string(b)
 }

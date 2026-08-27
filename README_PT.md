@@ -127,7 +127,7 @@ que já é um `agui.Runner` — o que qualquer transporte precisa.
 ```go
 ag, err := agui.New(ctx, m,
 	agui.WithSystemPrompt("Você ajuda a planejar viagens."),
-	agui.WithTools(buscarVoos, definirTema),
+	agui.WithTools(searchFlights, setTheme),
 	agui.WithMaxIterations(6),
 )
 ```
@@ -154,7 +154,7 @@ instância nova.
 | `WithMessagePreprocessor(f)` | última transformação nas mensagens antes de cada chamada — truncar histórico, injetar few-shots, redigir dados sensíveis |
 | `WithState(f)` | troca a construção do estado compartilhado do run |
 | `WithHooks(h)` | observadores do run — ver [Observabilidade](#observabilidade) |
-| `WithStepNames(modelo, tools)` | rótulos dos `STEP_STARTED`/`STEP_FINISHED` (padrões `"model"` e `"tools"`) |
+| `WithStepNames(model, tools)` | rótulos dos `STEP_STARTED`/`STEP_FINISHED` (padrões `"model"` e `"tools"`) |
 
 Por que 8 iterações: cobre com folga o caso real (chamar uma tool de dados,
 depois uma de apresentação, depois responder) e limita o prejuízo de um laço
@@ -197,14 +197,14 @@ depender de o React tê-la registrado.
 ### Schema inferido — `NewTool`
 
 ```go
-type BuscaVoos struct {
-	Origem  string `json:"origem"  jsonschema:"required,description=Código IATA de origem"`
-	Destino string `json:"destino" jsonschema:"required,description=Código IATA de destino"`
+type FlightSearch struct {
+	Origin      string `json:"origin"  jsonschema:"required,description=Código IATA de origem"`
+	Destination string `json:"destination" jsonschema:"required,description=Código IATA de destino"`
 }
 
-agui.NewTool("buscar_voos", "Busca voos entre dois aeroportos.",
-	func(ctx context.Context, in BuscaVoos) ([]Voo, error) {
-		return buscar(in.Origem, in.Destino), nil
+agui.NewTool("search_flights", "Busca voos entre dois aeroportos.",
+	func(ctx context.Context, in FlightSearch) ([]Flight, error) {
+		return search(in.Origin, in.Destination), nil
 	})
 ```
 
@@ -233,7 +233,7 @@ Anuncia o schema ao modelo mas não executa: ao ver a chamada, o run termina e o
 controle volta ao frontend.
 
 ```go
-agui.NewClientTool("mostrar_grafico", "Renderiza um gráfico na tela.",
+agui.NewClientTool("show_chart", "Renderiza um gráfico na tela.",
 	json.RawMessage(`{"type":"object","properties":{"titulo":{"type":"string"}}}`))
 ```
 
@@ -248,7 +248,7 @@ ag, err := agui.New(ctx, m, agui.WithTools(
 	agui.NewTool("a", "...", fnA),
 	agui.NewRawTool("b", "...", schemaB, fnB),
 ))
-// err: tool "b": schema de parâmetros inválido: ...
+// err: tool "b": invalid parameter schema: ...
 ```
 
 O motivo é de linguagem: em Go, uma expressão de dois valores só pode ser a
@@ -261,9 +261,9 @@ A função de uma tool recebe só `(ctx, entrada)` — é assim que o Eino a inv
 Todo o resto do run chega pelo contexto:
 
 ```go
-func trocarTema(ctx context.Context, in TemaArgs) (string, error) {
+func changeTheme(ctx context.Context, in ThemeArgs) (string, error) {
 	rc := agui.MustFromContext(ctx)
-	rc.State().Set("/tema", in.Tema)   // aplica E emite o STATE_DELTA
+	rc.State().Set("/theme", in.Theme)   // aplica E emite o STATE_DELTA
 	return `{"ok":true}`, nil
 }
 ```
@@ -295,7 +295,7 @@ emitir".
 st.Set("/todos/0/feito", true)   // aplica + emite
 st.Remove("/rascunho")           // idem
 st.Apply(ops)                    // lote atômico: ou tudo, ou nada
-v, ok := st.Get("/tema")         // leitura por JSON Pointer (RFC 6901)
+v, ok := st.Get("/theme")         // leitura por JSON Pointer (RFC 6901)
 snap := st.Snapshot()            // cópia profunda
 ```
 
@@ -322,10 +322,10 @@ Uma tool pausa o run devolvendo `agui.Interrupt`. O cliente responde em
 `RunAgentInput.resume`, e na passagem seguinte a tool recupera a resposta:
 
 ```go
-func aprovarCompra(ctx context.Context, in Compra) (string, error) {
+func approvePurchase(ctx context.Context, in Purchase) (string, error) {
 	rc := agui.MustFromContext(ctx)
 	if payload, ok := rc.ResumeFor(rc.ToolCallID()); ok {
-		return processar(in, payload)      // o humano respondeu
+		return process(in, payload)      // o humano respondeu
 	}
 	return "", agui.Interrupt(agui.InterruptRequest{
 		Reason:  "needs_approval",
@@ -366,8 +366,8 @@ reconhece a chave `a2ui_operations`, aplica as operações na superfície e
 renderiza os componentes do seu catálogo React.
 
 ```go
-func mostrarVoos(ctx context.Context, in BuscaVoos) (string, error) {
-	voos := buscar(in.Origem, in.Destino)
+func showFlights(ctx context.Context, in FlightSearch) (string, error) {
+	voos := search(in.Origin, in.Destination)
 
 	return a2ui.Render(
 		a2ui.CreateSurface("voos", "copilotkit://app-dashboard-catalog"),
@@ -671,12 +671,12 @@ testa é o laço e a sequência de eventos, não o adaptador HTTP de terceiro.
 
 ```go
 m := aguitest.NewFakeModel(
-	aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{{ID: "c1", Name: "somar", Args: `{"a":2,"b":3}`}}},
-	aguitest.Turn{Text: "São 5."},
+	aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{{ID: "c1", Name: "add", Args: `{"a":2,"b":3}`}}},
+	aguitest.Turn{Text: "That is 5."},
 )
-ag := agui.Must(agui.New(ctx, m, agui.WithTools(toolSoma())))
+ag := agui.Must(agui.New(ctx, m, agui.WithTools(addTool())))
 
-evs := aguitest.Run(t, ag, aguitest.Input("quanto é 2+3?"))
+evs := aguitest.Run(t, ag, aguitest.Input("what is 2+3?"))
 aguitest.RequireBalanced(t, evs)
 aguitest.RequireContains(t, evs, agui.EventToolCallResult, agui.EventRunFinished)
 ```
@@ -684,8 +684,8 @@ aguitest.RequireContains(t, evs, agui.EventToolCallResult, agui.EventRunFinished
 `RequireBalanced` é a asserção que ninguém escreve sozinho e que mais paga: todo
 `START` tem `END`, nenhum bloco se sobrepõe, e o run tem exatamente **um** evento
 terminal, no fim. Há ainda `RequireSequence` (a sequência exata),
-`Collect`/`ParseSSE` (para exercitar um `http.Handler`), `Primeiro`/`Todos`/`Tipos`
-e `TextoConcatenado`.
+`Collect`/`ParseSSE` (para exercitar um `http.Handler`), `First`/`All`/`Types`
+e `ConcatenatedText`.
 
 Do outro lado, `FakeModel.Calls()` devolve as mensagens que o modelo recebeu em
 cada chamada, e `BoundTools()` os conjuntos de tools ligados — é o que permite

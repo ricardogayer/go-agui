@@ -11,99 +11,106 @@ import (
 	"github.com/ricardogayer/go-agui/aguitest"
 )
 
-func TestCorpoInvalidoViraBadRequest(t *testing.T) {
+func TestInvalidBodyBecomesBadRequest(t *testing.T) {
 	h := agui.Handler(agui.RunnerFunc(
 		func(context.Context, *agui.Emitter, *agui.RunAgentInput) error {
-			t.Fatal("o runner não deveria ser chamado")
+			t.Fatal("the runner should not be called")
 			return nil
 		}))
 
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{isto não é json"))
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader("{this is not json"))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, esperava 400", rec.Code)
+		t.Fatalf("status = %d, want 400", rec.Code)
 	}
 }
 
-func TestCorpoAcimaDoLimiteVira413(t *testing.T) {
+func TestBodyOverTheLimitBecomes413(t *testing.T) {
 	h := agui.Handler(agui.RunnerFunc(
 		func(context.Context, *agui.Emitter, *agui.RunAgentInput) error {
-			t.Fatal("o runner não deveria ser chamado")
+			t.Fatal("the runner should not be called")
 			return nil
 		}), agui.WithMaxBodyBytes(64))
 
-	corpo := `{"threadId":"t1","runId":"r1","messages":[{"id":"m1","role":"user","content":"` +
+	body := `{"threadId":"t1","runId":"r1","messages":[{"id":"m1","role":"user","content":"` +
 		strings.Repeat("x", 256) + `"}]}`
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(corpo))
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusRequestEntityTooLarge {
-		t.Fatalf("status = %d, esperava 413", rec.Code)
+		t.Fatalf("status = %d, want 413", rec.Code)
 	}
 }
 
-func TestPanicoDoRunnerViraRunError(t *testing.T) {
+func TestRunnerPanicBecomesRunError(t *testing.T) {
 	h := agui.Handler(agui.RunnerFunc(
 		func(context.Context, *agui.Emitter, *agui.RunAgentInput) error {
-			panic("bug no provedor")
+			panic("bug in the provider")
 		}))
 
-	evs := aguitest.Collect(t, h, aguitest.Input("oi"))
+	evs := aguitest.Collect(t, h, aguitest.Input("hi"))
 
 	aguitest.RequireSequence(t, evs, agui.EventRunStarted, agui.EventRunError)
 	aguitest.RequireBalanced(t, evs)
 }
 
-func TestRunnerQueDevolveErroSemTerminalGanhaUmRunError(t *testing.T) {
+func TestRunnerReturningErrorWithoutTerminalGetsARunError(t *testing.T) {
 	h := agui.Handler(agui.RunnerFunc(
 		func(context.Context, *agui.Emitter, *agui.RunAgentInput) error {
 			return context.DeadlineExceeded
 		}))
 
-	evs := aguitest.Collect(t, h, aguitest.Input("oi"))
+	evs := aguitest.Collect(t, h, aguitest.Input("hi"))
 
-	// O invariante: todo run termina com exatamente um evento terminal. Um
+	// The invariant: every run ends with exactly one terminal event. A Runner
+	// that forgets its own would leave the client hanging on a stream that
+	// simply stops.
+	//
+	// PT: O invariante: todo run termina com exatamente um evento terminal. Um
 	// Runner que esquece o seu deixaria o cliente pendurado num stream que
 	// simplesmente para.
 	aguitest.RequireSequence(t, evs, agui.EventRunStarted, agui.EventRunError)
 }
 
-func TestRunnerQueTerminaSozinhoNaoRecebeTerminalDuplicado(t *testing.T) {
+func TestRunnerThatTerminatesItselfGetsNoDuplicateTerminal(t *testing.T) {
 	h := agui.Handler(agui.RunnerFunc(
 		func(_ context.Context, e *agui.Emitter, _ *agui.RunAgentInput) error {
 			e.RunFinished()
-			return context.Canceled // erro só para registro
+			return context.Canceled // error only for the record (PT: erro só para registro)
 		}))
 
-	evs := aguitest.Collect(t, h, aguitest.Input("oi"))
+	evs := aguitest.Collect(t, h, aguitest.Input("hi"))
 
 	aguitest.RequireSequence(t, evs, agui.EventRunStarted, agui.EventRunFinished)
 	aguitest.RequireBalanced(t, evs)
 }
 
-func TestThreadIDERunIDVaziosSaoGerados(t *testing.T) {
+func TestEmptyThreadIDAndRunIDAreGenerated(t *testing.T) {
 	h := agui.Handler(agui.RunnerFunc(
 		func(_ context.Context, e *agui.Emitter, _ *agui.RunAgentInput) error {
-			// O SDK recusa eventos com esses campos vazios; se não fossem
+			// The SDK rejects events with these fields empty; if they were not
+			// generated, not even the RUN_STARTED would go out.
+			//
+			// PT: O SDK recusa eventos com esses campos vazios; se não fossem
 			// gerados, nem o RUN_STARTED sairia.
 			if e.ThreadID() == "" || e.RunID() == "" {
-				t.Error("threadId/runId deveriam ter sido gerados")
+				t.Error("threadId/runId should have been generated")
 			}
 			e.RunFinished()
 			return nil
 		}))
 
-	in := aguitest.Input("oi")
+	in := aguitest.Input("hi")
 	in.ThreadID, in.RunID = "", ""
 
 	evs := aguitest.Collect(t, h, in)
 	aguitest.RequireSequence(t, evs, agui.EventRunStarted, agui.EventRunFinished)
 }
 
-func TestCabecalhosDeStreamingSaemAntesDoPrimeiroEvento(t *testing.T) {
+func TestStreamingHeadersAreSentBeforeTheFirstEvent(t *testing.T) {
 	h := agui.Handler(agui.RunnerFunc(
 		func(_ context.Context, e *agui.Emitter, _ *agui.RunAgentInput) error {
 			e.RunFinished()
@@ -114,39 +121,45 @@ func TestCabecalhosDeStreamingSaemAntesDoPrimeiroEvento(t *testing.T) {
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 
-	esperados := map[string]string{
+	want := map[string]string{
 		"Content-Type":  "text/event-stream",
 		"Cache-Control": "no-cache",
-		// Espelha o proxy_buffering off do NGINX: sem isto o streaming vira lote.
+		// Mirrors NGINX's proxy_buffering off: without it streaming turns into batching.
+		//
+		// PT: Espelha o proxy_buffering off do NGINX: sem isto o streaming vira lote.
 		"X-Accel-Buffering": "no",
 	}
-	for k, v := range esperados {
+	for k, v := range want {
 		if got := rec.Header().Get(k); got != v {
-			t.Errorf("cabeçalho %s = %q, esperava %q", k, got, v)
+			t.Errorf("header %s = %q, want %q", k, got, v)
 		}
 	}
 }
 
-func TestMuxAtendeAsDuasFormasDoHealth(t *testing.T) {
+func TestMuxServesBothHealthPaths(t *testing.T) {
 	mux := agui.Mux(agui.RunnerFunc(
 		func(_ context.Context, e *agui.Emitter, _ *agui.RunAgentInput) error {
 			e.RunFinished()
 			return nil
-		}), "agente_teste")
+		}), "test_agent")
 
-	// `//health` é o caminho que uma sonda escrita contra o backend Python usa:
+	// `//health` is the path a probe written against the Python backend uses:
+	// the adapter mounts the healthcheck at path + "/health", and with path="/"
+	// that gives literally two slashes.
+	//
+	// PT: `//health` é o path que uma sonda escrita contra o backend Python usa:
 	// o adaptador monta o healthcheck em path + "/health", e com path="/" isso
 	// dá literalmente duas barras.
-	for _, caminho := range []string{"/health", "//health"} {
-		req := httptest.NewRequest(http.MethodGet, caminho, nil)
+	for _, path := range []string{"/health", "//health"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
 		rec := httptest.NewRecorder()
 		mux.ServeHTTP(rec, req)
 
 		if rec.Code != http.StatusOK {
-			t.Errorf("GET %s = %d, esperava 200", caminho, rec.Code)
+			t.Errorf("GET %s = %d, want 200", path, rec.Code)
 		}
-		if !strings.Contains(rec.Body.String(), "agente_teste") {
-			t.Errorf("GET %s não devolveu o nome do agente: %s", caminho, rec.Body.String())
+		if !strings.Contains(rec.Body.String(), "test_agent") {
+			t.Errorf("GET %s did not return the agent name: %s", path, rec.Body.String())
 		}
 	}
 }

@@ -5,7 +5,18 @@ import (
 	"log/slog"
 )
 
-// RunContext é tudo o que uma tool precisa saber sobre o run em que está sendo
+// RunContext is everything a tool needs to know about the run it is being
+// executed in.
+//
+// It exists because a tool's function receives only `(ctx, input)` — that is
+// how Eino invokes it — and therefore the context is the ONLY channel through
+// which per-request data can arrive. Without it, a tool would have no way to
+// emit an event, touch the shared state or know which call it is serving.
+//
+// A RunContext is created by the loop and injected into ctx before each
+// invocation. Outside a run it does not exist: see [FromContext].
+//
+// PT: RunContext é tudo o que uma tool precisa saber sobre o run em que está sendo
 // executada.
 //
 // Ele existe porque a função de uma tool recebe apenas `(ctx, entrada)` — é
@@ -28,7 +39,14 @@ type RunContext struct {
 
 type runContextKey struct{}
 
-// FromContext recupera o [RunContext] do run corrente. ok é falso fora de um
+// FromContext retrieves the [RunContext] of the current run. ok is false
+// outside a run — in a direct call to the tool's function in a test, for
+// example.
+//
+// A tool that wants to be testable outside a run should handle ok=false
+// instead of using [MustFromContext].
+//
+// PT: FromContext recupera o [RunContext] do run corrente. ok é falso fora de um
 // run — numa chamada direta à função da tool num teste, por exemplo.
 //
 // Uma tool que queira ser testável fora de um run deve tratar ok=false em vez
@@ -38,7 +56,13 @@ func FromContext(ctx context.Context) (*RunContext, bool) {
 	return rc, ok
 }
 
-// MustFromContext é [FromContext] com pânico quando não há run.
+// MustFromContext is [FromContext] with a panic when there is no run.
+//
+// Use it when the tool only makes sense inside a run; the panic message says
+// exactly what happened, which is better than a nil dereference three frames
+// below.
+//
+// PT: MustFromContext é [FromContext] com pânico quando não há run.
 //
 // Use quando a tool só faz sentido dentro de um run; a mensagem do pânico diz
 // exatamente o que houve, o que é melhor do que um nil dereference três frames
@@ -46,8 +70,8 @@ func FromContext(ctx context.Context) (*RunContext, bool) {
 func MustFromContext(ctx context.Context) *RunContext {
 	rc, ok := FromContext(ctx)
 	if !ok {
-		panic("agui: não há RunContext neste contexto — esta função só pode ser " +
-			"chamada de dentro de uma tool executada por um agui.Agent")
+		panic("agui: no RunContext in this context — this function can only be " +
+			"called from inside a tool executed by an agui.Agent")
 	}
 	return rc
 }
@@ -56,7 +80,11 @@ func (r *RunContext) attach(ctx context.Context) context.Context {
 	return context.WithValue(ctx, runContextKey{}, r)
 }
 
-// forToolCall deriva um RunContext para uma chamada específica. Os campos
+// forToolCall derives a RunContext for a specific call. The shared fields
+// (emitter, state, input) are the same pointers; only the call identity
+// changes.
+//
+// PT: forToolCall deriva um RunContext para uma chamada específica. Os campos
 // compartilhados (emitter, estado, input) são os mesmos ponteiros; só a
 // identidade da chamada muda.
 func (r *RunContext) forToolCall(id, name string) *RunContext {
@@ -66,37 +94,61 @@ func (r *RunContext) forToolCall(id, name string) *RunContext {
 	return &c
 }
 
-// Emitter devolve o emissor de eventos do run. Emitir daqui é seguro em
+// Emitter returns the run's event emitter. Emitting from here is safe under
+// concurrency; what you must NOT do is emit terminal events
+// (RunFinished/RunError) from inside a tool — the loop is what ends the run.
+//
+// PT: Emitter devolve o emissor de eventos do run. Emitir daqui é seguro em
 // concorrência; o que NÃO se deve fazer é emitir eventos terminais
 // (RunFinished/RunError) de dentro de uma tool — quem encerra o run é o laço.
 func (r *RunContext) Emitter() *Emitter { return r.emitter }
 
-// State devolve o estado compartilhado do run. Escrever nele aplica e emite o
+// State returns the run's shared state. Writing to it applies and emits the
+// corresponding STATE_DELTA — see [State].
+//
+// PT: State devolve o estado compartilhado do run. Escrever nele aplica e emite o
 // STATE_DELTA correspondente — ver [State].
 func (r *RunContext) State() *State { return r.state }
 
-// Input devolve o RunAgentInput cru da requisição, para quem precisa de
+// Input returns the raw RunAgentInput of the request, for whoever needs
+// forwardedProps, the threadId or the application context.
+//
+// PT: Input devolve o RunAgentInput cru da requisição, para quem precisa de
 // forwardedProps, do threadId ou do contexto da aplicação.
 func (r *RunContext) Input() *RunAgentInput { return r.input }
 
-// Logger devolve um logger já anotado com thread e run.
+// Logger returns a logger already annotated with thread and run.
+//
+// PT: Logger devolve um logger já anotado com thread e run.
 func (r *RunContext) Logger() *slog.Logger { return r.logger }
 
-// ThreadID e RunID identificam a conversa e a execução corrente.
+// ThreadID and RunID identify the conversation and the current execution.
+//
+// PT: ThreadID e RunID identificam a conversa e a execução corrente.
 func (r *RunContext) ThreadID() string { return r.emitter.ThreadID() }
 func (r *RunContext) RunID() string    { return r.emitter.RunID() }
 
-// ToolCallID é o id da chamada que esta tool está atendendo. Vazio fora da
+// ToolCallID is the id of the call this tool is serving. Empty outside the
+// execution of a tool.
+//
+// It is the key for [RunContext.ResumeFor] and for the Interrupt: it is how
+// the client correlates the question and the answer.
+//
+// PT: ToolCallID é o id da chamada que esta tool está atendendo. Vazio fora da
 // execução de uma tool.
 //
 // É a chave para [RunContext.ResumeFor] e para o Interrupt: é por ele que o
 // cliente correlaciona a pergunta e a resposta.
 func (r *RunContext) ToolCallID() string { return r.toolCallID }
 
-// ToolName é o nome da tool em execução. Vazio fora de uma tool.
+// ToolName is the name of the tool being executed. Empty outside a tool.
+//
+// PT: ToolName é o nome da tool em execução. Vazio fora de uma tool.
 func (r *RunContext) ToolName() string { return r.toolName }
 
-// Resume devolve as entradas de retomada recebidas em RunAgentInput.resume.
+// Resume returns the resume entries received in RunAgentInput.resume.
+//
+// PT: Resume devolve as entradas de retomada recebidas em RunAgentInput.resume.
 func (r *RunContext) Resume() []ResumeEntry {
 	if r.input == nil {
 		return nil
@@ -104,21 +156,31 @@ func (r *RunContext) Resume() []ResumeEntry {
 	return r.input.Resume
 }
 
-// ResumeFor devolve o payload que o cliente enviou para um interrupt
-// identificado por interruptID, e se ele existe.
+// ResumeFor returns the payload the client sent for an interrupt identified by
+// interruptID, and whether it exists.
 //
-// O padrão de uso numa tool que pede confirmação humana é este:
+// The usage pattern in a tool that asks for human confirmation is this:
 //
-//	func aprovar(ctx context.Context, in Compra) (string, error) {
+//	func approve(ctx context.Context, in Purchase) (string, error) {
 //		rc := agui.MustFromContext(ctx)
 //		if payload, ok := rc.ResumeFor(rc.ToolCallID()); ok {
-//			return processar(in, payload) // segunda passagem: o humano respondeu
+//			return process(in, payload) // second pass: the human answered
 //		}
 //		return "", agui.Interrupt(agui.InterruptRequest{
 //			Reason:  "needs_approval",
-//			Message: "Confirmar a compra?",
+//			Message: "Confirm the purchase?",
 //		})
 //	}
+//
+// Only entries with status "resolved" are considered: a "cancelled" decision
+// is not a resume value, and returning it as if it were would make the tool
+// execute precisely what the user refused. Use [RunContext.Resume] to inspect
+// the cancellations.
+//
+// PT: ResumeFor devolve o payload que o cliente enviou para um interrupt
+// identificado por interruptID, e se ele existe.
+//
+// O padrão de uso numa tool que pede confirmação humana é o do exemplo acima.
 //
 // Só entradas com status "resolved" são consideradas: uma decisão "cancelled"
 // não é um valor de retomada, e devolvê-la como se fosse faria a tool executar
@@ -135,14 +197,19 @@ func (r *RunContext) ResumeFor(interruptID string) (any, bool) {
 	return v, ok
 }
 
-// indexResume monta o índice interruptID → payload das retomadas resolvidas.
+// indexResume builds the interruptID → payload index of the resolved resumes.
+//
+// PT: indexResume monta o índice interruptID → payload das retomadas resolvidas.
 func indexResume(entries []ResumeEntry) map[string]any {
 	m := make(map[string]any, len(entries))
 	for _, e := range entries {
 		if e.InterruptID == "" || e.Status != ResumeStatusResolved {
 			continue
 		}
-		// Um payload nulo ainda é uma resposta: o humano aprovou sem enviar
+		// A nil payload is still an answer: the human approved without sending
+		// data. The map needs to record the KEY, and the nil value is legitimate.
+		//
+		// PT: Um payload nulo ainda é uma resposta: o humano aprovou sem enviar
 		// dados. O mapa precisa registrar a CHAVE, e o valor nil é legítimo.
 		m[e.InterruptID] = e.Payload
 	}

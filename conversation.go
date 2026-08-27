@@ -9,8 +9,20 @@ import (
 	"github.com/cloudwego/eino/schema"
 )
 
-// Conversation é o histórico de um run em formato Eino, preservando o id AG-UI
-// original de cada mensagem.
+// Conversation is the history of a run in Eino format, preserving the
+// original AG-UI id of each message.
+//
+// Preserving the ids matters: the MESSAGES_SNAPSHOT at the end of the run
+// replaces the frontend's message list. If every snapshot invented new ids,
+// the client would see the whole conversation as new messages on every turn.
+// Messages coming from the request keep the id the client sent; messages
+// produced in this run receive the id already announced in the streaming
+// events.
+//
+// A Conversation is per run and is not safe for concurrent use.
+//
+// PT: Conversation é o histórico de um run em formato Eino, preservando o id
+// AG-UI original de cada mensagem.
 //
 // Preservar os ids importa: o MESSAGES_SNAPSHOT do fim do run substitui a lista
 // de mensagens do frontend. Se cada snapshot inventasse ids novos, o cliente
@@ -24,7 +36,15 @@ type Conversation struct {
 	ids  []string
 }
 
-// FromRunInput monta a conversa a partir do histórico recebido em
+// FromRunInput builds the conversation from the history received in
+// RunAgentInput.
+//
+// The agent's system prompt does NOT go in here: it is injected only in the
+// call to the model (see [Conversation.ModelInput]). This is how LangGraph
+// behaves — `system_prompt` does not become a state message — and it avoids
+// leaking the prompt to the frontend through the MESSAGES_SNAPSHOT.
+//
+// PT: FromRunInput monta a conversa a partir do histórico recebido em
 // RunAgentInput.
 //
 // O system prompt do agente NÃO entra aqui: ele é injetado apenas na chamada ao
@@ -54,31 +74,60 @@ func FromRunInput(in []types.Message) *Conversation {
 			content, _ := m.ContentString()
 			c.AppendWithID(schema.ToolMessage(content, m.ToolCallID), m.ID)
 		}
-		// Papéis sem uso para o modelo (reasoning, activity) são ignorados.
+		// Roles of no use to the model (reasoning, activity) are ignored.
+		//
+		// PT: Papéis sem uso para o modelo (reasoning, activity) são ignorados.
 	}
 	return c
 }
 
-// Append acrescenta uma mensagem produzida neste run. O id AG-UI é gerado no
-// momento do snapshot.
+// Append adds a message produced in this run. The AG-UI id is generated at
+// snapshot time.
+//
+// PT: Append acrescenta uma mensagem produzida neste run. O id AG-UI é gerado
+// no momento do snapshot.
 func (c *Conversation) Append(m *schema.Message) { c.AppendWithID(m, "") }
 
-// AppendWithID acrescenta uma mensagem com um id AG-UI já conhecido — o que foi
-// anunciado nos eventos de streaming, por exemplo. Um id vazio equivale a
+// AppendWithID adds a message with an already known AG-UI id — the one
+// announced in the streaming events, for example. An empty id is equivalent
+// to [Conversation.Append].
+//
+// PT: AppendWithID acrescenta uma mensagem com um id AG-UI já conhecido — o que
+// foi anunciado nos eventos de streaming, por exemplo. Um id vazio equivale a
 // [Conversation.Append].
 func (c *Conversation) AppendWithID(m *schema.Message, id string) {
 	c.msgs = append(c.msgs, m)
 	c.ids = append(c.ids, id)
 }
 
-// Len devolve o número de mensagens da conversa.
+// Len returns the number of messages in the conversation.
+//
+// PT: Len devolve o número de mensagens da conversa.
 func (c *Conversation) Len() int { return len(c.msgs) }
 
-// Messages devolve as mensagens cruas, sem reparo nem system prompt. Serve para
-// inspeção e para um [MessagePreprocessor]; não mute o resultado.
+// Messages returns the raw messages, without repair or system prompt. It is
+// meant for inspection and for a [MessagePreprocessor]; do not mutate the
+// result.
+//
+// PT: Messages devolve as mensagens cruas, sem reparo nem system prompt. Serve
+// para inspeção e para um [MessagePreprocessor]; não mute o resultado.
 func (c *Conversation) Messages() []*schema.Message { return c.msgs }
 
-// ModelInput devolve as mensagens a enviar ao modelo, com o system prompt à
+// ModelInput returns the messages to send to the model, with the system
+// prompt in front. When the client has already sent a system message, it wins
+// and the agent's prompt is not injected.
+//
+// extraSystem are additional system blocks — in practice, the request context
+// (see [AppContextBlock]). Unlike the agent's prompt, they ALWAYS go in, even
+// if the client has already sent a system message: it is request information,
+// not a default the client may override. Python's CopilotKitMiddleware does
+// the same, inserting the block right after the first system message; here it
+// goes in front, which does not change what the model reads.
+//
+// The history goes through [RepairToolPairs] before going to the model — see
+// there for why.
+//
+// PT: ModelInput devolve as mensagens a enviar ao modelo, com o system prompt à
 // frente. Quando o cliente já mandou uma mensagem de sistema, ela vence e o
 // prompt do agente não é injetado.
 //
@@ -119,12 +168,30 @@ func hasSystemMessage(msgs []*schema.Message) bool {
 	return false
 }
 
-// appContextPrefix é o cabeçalho do bloco de contexto, byte a byte igual ao do
-// CopilotKitMiddleware do Python (`f"App Context:\n{context_content}"`).
+// appContextPrefix is the header of the context block, byte for byte equal to
+// the one in Python's CopilotKitMiddleware (`f"App Context:\n{context_content}"`).
+//
+// PT: appContextPrefix é o cabeçalho do bloco de contexto, byte a byte igual ao
+// do CopilotKitMiddleware do Python (`f"App Context:\n{context_content}"`).
 const appContextPrefix = "App Context:\n"
 
-// AppContextBlock monta o bloco de sistema com o `context` da requisição, no
-// formato que o backend Python produzia. É o [ContextFormatter] padrão.
+// AppContextBlock builds the system block with the request's `context`, in the
+// format the Python backend produced. It is the default [ContextFormatter].
+//
+// This is NOT cosmetic: it is through `RunAgentInput.context` that CopilotKit
+// runtime middlewares deliver to the agent information it would not otherwise
+// have. In the A2UI case these are (a) the CATALOG of available components and
+// (b) the usage guide of the `generate_a2ui` tool. Without passing that context
+// on to the model, it calls the tool inventing component names the React
+// catalog does not know, and the frontend renders "Unknown component: ..." —
+// observed on the wire before this block existed.
+//
+// The format (JSON indented with 2 spaces, under "App Context:") is that of
+// CopilotKitMiddleware; keeping the shape matters because it is the one the
+// model saw when exercised against the Python backend.
+//
+// PT: AppContextBlock monta o bloco de sistema com o `context` da requisição,
+// no formato que o backend Python produzia. É o [ContextFormatter] padrão.
 //
 // Isto NÃO é cosmético: é por `RunAgentInput.context` que middlewares do
 // runtime CopilotKit entregam ao agente informação que ele não teria de outra
@@ -143,7 +210,11 @@ func AppContextBlock(entries []Context) string {
 	}
 	b, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
-		// Context é struct de duas strings: só falharia se o SDK mudasse de
+		// Context is a struct of two strings: it would only fail if the SDK
+		// changed shape. Losing the context degrades the answer, but does not
+		// justify bringing down the run.
+		//
+		// PT: Context é struct de duas strings: só falharia se o SDK mudasse de
 		// forma. Perder o contexto degrada a resposta, mas não justifica
 		// derrubar o run.
 		return ""
@@ -151,7 +222,15 @@ func AppContextBlock(entries []Context) string {
 	return appContextPrefix + string(b)
 }
 
-// noToolResult substitui uma resposta de tool ausente ou vazia.
+// noToolResult replaces a missing or empty tool response.
+//
+// An empty response does not break the API — for the `tool` role the client
+// serializes `content: ""`, which is a valid string (verified against the
+// API). The problem is another: `""` tells the model nothing, leaving it
+// unsure whether the tool ran. A short status costs nothing and removes the
+// ambiguity.
+//
+// PT: noToolResult substitui uma resposta de tool ausente ou vazia.
 //
 // Uma resposta vazia não quebra a API — para o papel `tool` o cliente serializa
 // `content: ""`, que é uma string válida (verificado contra a API). O problema é
@@ -159,22 +238,44 @@ func AppContextBlock(entries []Context) string {
 // status curto custa nada e remove a ambiguidade.
 const noToolResult = `{"status":"handled","note":"the client handled this tool call and returned no value"}`
 
-// RepairToolPairs põe o histórico na forma que os provedores de chat exigem:
-// cada mensagem do assistente que faz tool calls é seguida IMEDIATAMENTE pelas
-// respostas das suas chamadas, todas presentes e com conteúdo não vazio, e
-// nenhuma mensagem `tool` fica órfã.
+// RepairToolPairs puts the history in the shape chat providers require: every
+// assistant message that makes tool calls is IMMEDIATELY followed by the
+// responses to its calls, all present and with non-empty content, and no
+// `tool` message is left orphaned.
+//
+// This is NOT paranoid defense — it is the normal path of any agent with
+// frontend tools, and without it the chat works once and every following
+// message in the same thread fails. When the model calls a frontend tool, the
+// run ends and control returns to the client; the history it resends on the
+// next message arrives like this (observed on the wire):
+//
+//	user
+//	assistant[get_sales_data]
+//	assistant[generate_a2ui]
+//	tool "" → generate_a2ui   ← rendered surface: no return value
+//	tool {metrics} → get_sales_data
+//
+// The defect that brings down the run is the ORDER: the responses come after
+// BOTH assistant messages, instead of right after their own. OpenAI rejects it
+// with 400 ("must be followed by tool messages responding to each
+// 'tool_call_id'"), verified against the API. The component's empty response
+// brings nothing down — it is serialized as `""` —, but it is also filled in
+// here: see noToolResult.
+//
+// The repair applies only to what goes to the MODEL. The MESSAGES_SNAPSHOT
+// returned to the client remains the real history, with no reordering and no
+// invented responses.
+//
+// PT: RepairToolPairs põe o histórico na forma que os provedores de chat
+// exigem: cada mensagem do assistente que faz tool calls é seguida
+// IMEDIATAMENTE pelas respostas das suas chamadas, todas presentes e com
+// conteúdo não vazio, e nenhuma mensagem `tool` fica órfã.
 //
 // Isto NÃO é defesa paranoica — é o caminho normal de qualquer agente com tools
 // de frontend, e sem ele o chat funciona uma vez e toda mensagem seguinte na
 // mesma thread falha. Quando o modelo chama uma tool de frontend, o run termina
 // e o controle volta ao cliente; o histórico que ele reenvia na mensagem
-// seguinte chega assim (observado no fio):
-//
-//	user
-//	assistant[get_sales_data]
-//	assistant[generate_a2ui]
-//	tool "" → generate_a2ui   ← superfície renderizada: sem valor de retorno
-//	tool {métricas} → get_sales_data
+// seguinte chega como no exemplo acima (observado no fio).
 //
 // O defeito que derruba o run é a ORDEM: as respostas vêm depois das DUAS
 // mensagens do assistente, em vez de logo após a sua. A OpenAI recusa com 400
@@ -187,11 +288,14 @@ const noToolResult = `{"status":"handled","note":"the client handled this tool c
 // inventadas.
 func RepairToolPairs(msgs []*schema.Message) []*schema.Message {
 	if toolPairsOK(msgs) {
-		return msgs // caminho íntegro: nada a fazer, nenhuma alocação
+		return msgs // clean path: nothing to do, no allocation (PT: caminho íntegro: nada a fazer, nenhuma alocação)
 	}
 
-	// Primeira resposta encontrada para cada chamada; duplicatas são descartadas
-	// (o provedor recusa duas respostas para o mesmo tool_call_id).
+	// First response found for each call; duplicates are discarded (the
+	// provider rejects two responses for the same tool_call_id).
+	//
+	// PT: Primeira resposta encontrada para cada chamada; duplicatas são
+	// descartadas (o provedor recusa duas respostas para o mesmo tool_call_id).
 	answers := make(map[string]*schema.Message, len(msgs))
 	for _, m := range msgs {
 		if m.Role == schema.Tool && m.ToolCallID != "" {
@@ -204,14 +308,20 @@ func RepairToolPairs(msgs []*schema.Message) []*schema.Message {
 	out := make([]*schema.Message, 0, len(msgs))
 	for _, m := range msgs {
 		if m.Role == schema.Tool {
-			continue // reposicionada abaixo; se for órfã, some
+			continue // repositioned below; if orphaned, it disappears (PT: reposicionada abaixo; se for órfã, some)
 		}
 		if m.Role == schema.Assistant && m.Content == "" && len(m.ToolCalls) == 0 {
-			// Sobra de um turno que morreu no meio (o cliente guarda a mensagem
-			// do assistente que começou a ser transmitida). Sem conteúdo e sem
-			// tool calls ela não diz nada ao modelo, e a API a recusa: o campo
-			// `content` sai ausente e vem de volta um 400 "Invalid value for
-			// 'content': expected a string, got null".
+			// Leftover of a turn that died midway (the client keeps the
+			// assistant message that started being streamed). With no content
+			// and no tool calls it tells the model nothing, and the API rejects
+			// it: the `content` field goes out absent and a 400 "Invalid value
+			// for 'content': expected a string, got null" comes back.
+			//
+			// PT: Sobra de um turno que morreu no meio (o cliente guarda a
+			// mensagem do assistente que começou a ser transmitida). Sem
+			// conteúdo e sem tool calls ela não diz nada ao modelo, e a API a
+			// recusa: o campo `content` sai ausente e vem de volta um 400
+			// "Invalid value for 'content': expected a string, got null".
 			continue
 		}
 		out = append(out, m)
@@ -221,8 +331,12 @@ func RepairToolPairs(msgs []*schema.Message) []*schema.Message {
 		for _, tc := range m.ToolCalls {
 			answer, ok := answers[tc.ID]
 			if !ok || answer.Content == "" {
-				// Mensagem nova, nunca mutação da original: a mesma mensagem
-				// está no histórico que vai virar MESSAGES_SNAPSHOT.
+				// A new message, never a mutation of the original: the same
+				// message is in the history that will become the
+				// MESSAGES_SNAPSHOT.
+				//
+				// PT: Mensagem nova, nunca mutação da original: a mesma
+				// mensagem está no histórico que vai virar MESSAGES_SNAPSHOT.
 				answer = schema.ToolMessage(noToolResult, tc.ID)
 			}
 			out = append(out, answer)
@@ -231,20 +345,27 @@ func RepairToolPairs(msgs []*schema.Message) []*schema.Message {
 	return out
 }
 
-// toolPairsOK diz se o histórico já satisfaz o invariante, numa única passada.
+// toolPairsOK reports whether the history already satisfies the invariant, in
+// a single pass.
+//
+// PT: toolPairsOK diz se o histórico já satisfaz o invariante, numa única
+// passada.
 func toolPairsOK(msgs []*schema.Message) bool {
 	for i := 0; i < len(msgs); i++ {
 		m := msgs[i]
 		if m.Role == schema.Tool {
-			return false // toda `tool` legítima é consumida pelo bloco abaixo
+			return false // every legitimate `tool` is consumed by the block below (PT: toda `tool` legítima é consumida pelo bloco abaixo)
 		}
 		if m.Role == schema.Assistant && m.Content == "" && len(m.ToolCalls) == 0 {
-			return false // mensagem vazia de um turno interrompido
+			return false // empty message from an interrupted turn (PT: mensagem vazia de um turno interrompido)
 		}
 		if m.Role != schema.Assistant || len(m.ToolCalls) == 0 {
 			continue
 		}
-		// As len(ToolCalls) mensagens seguintes têm de ser exatamente as
+		// The next len(ToolCalls) messages must be exactly the responses to
+		// these calls, non-empty.
+		//
+		// PT: As len(ToolCalls) mensagens seguintes têm de ser exatamente as
 		// respostas destas chamadas, não vazias.
 		pending := make(map[string]bool, len(m.ToolCalls))
 		for _, tc := range m.ToolCalls {
@@ -265,7 +386,10 @@ func toolPairsOK(msgs []*schema.Message) bool {
 	return true
 }
 
-// Snapshot converte a conversa para mensagens AG-UI, prontas para o
+// Snapshot converts the conversation to AG-UI messages, ready for the
+// MESSAGES_SNAPSHOT, honoring the SDK's per-role validation rules.
+//
+// PT: Snapshot converte a conversa para mensagens AG-UI, prontas para o
 // MESSAGES_SNAPSHOT, respeitando as regras de validação por papel do SDK.
 func (c *Conversation) Snapshot() []types.Message {
 	out := make([]types.Message, 0, len(c.msgs))
@@ -273,7 +397,7 @@ func (c *Conversation) Snapshot() []types.Message {
 		id := c.ids[i]
 		if id == "" {
 			id = events.GenerateMessageID()
-			c.ids[i] = id // estável entre snapshots do mesmo run
+			c.ids[i] = id // stable across snapshots of the same run (PT: estável entre snapshots do mesmo run)
 		}
 		am := types.Message{ID: id, Content: m.Content}
 		switch m.Role {
@@ -295,7 +419,15 @@ func (c *Conversation) Snapshot() []types.Message {
 	return out
 }
 
-// messageText extrai o texto de uma mensagem AG-UI.
+// messageText extracts the text of an AG-UI message.
+//
+// ContentString covers plain string content; for structured content
+// ([]InputContent) it returns ok=false, and then we join the text fragments.
+// Non-text fragments (image/audio/binary) are discarded — this version has no
+// multimodal path —, but the text typed by the user is preserved instead of
+// the whole turn silently vanishing.
+//
+// PT: messageText extrai o texto de uma mensagem AG-UI.
 //
 // ContentString cobre o conteúdo string simples; para conteúdo estruturado
 // ([]InputContent) ele devolve ok=false, e então juntamos os fragmentos de

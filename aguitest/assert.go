@@ -13,137 +13,182 @@ import (
 	agui "github.com/ricardogayer/go-agui"
 )
 
-// Evento é um evento AG-UI decodificado do fluxo SSE, com os campos crus
+// Event is an AG-UI event decoded from the SSE stream, with the raw fields
+// preserved — which allows asserting on anything the server wrote, not only
+// on the type.
+//
+// PT: Event é um evento AG-UI decodificado do fluxo SSE, com os campos crus
 // preservados — o que permite afirmar sobre qualquer coisa que o servidor
 // escreveu, não só sobre o tipo.
-type Evento map[string]any
+type Event map[string]any
 
-// Tipo devolve o campo `type` do evento.
-func (e Evento) Tipo() agui.EventType {
+// Type returns the event's `type` field.
+//
+// PT: Type devolve o field `type` do evento.
+func (e Event) Type() agui.EventType {
 	t, _ := e["type"].(string)
 	return agui.EventType(t)
 }
 
-// String devolve um campo de texto do evento.
-func (e Evento) String(campo string) string {
-	s, _ := e[campo].(string)
+// String returns a text field of the event.
+//
+// PT: String devolve um field de texto do evento.
+func (e Event) String(field string) string {
+	s, _ := e[field].(string)
 	return s
 }
 
-// Input monta um RunAgentInput mínimo com uma mensagem de usuário. É o corpo
-// que quase todo teste precisa.
-func Input(texto string) *agui.RunAgentInput {
+// Input builds a minimal RunAgentInput with one user message. It is the body
+// almost every test needs.
+//
+// PT: Input monta um RunAgentInput mínimo com uma mensagem de usuário. É o
+// body que quase todo teste precisa.
+func Input(text string) *agui.RunAgentInput {
 	return &agui.RunAgentInput{
-		ThreadID: "thread_teste",
-		RunID:    "run_teste",
+		ThreadID: "thread_test",
+		RunID:    "run_test",
 		Messages: []agui.Message{
-			{ID: "msg_1", Role: agui.RoleUser, Content: texto},
+			{ID: "msg_1", Role: agui.RoleUser, Content: text},
 		},
 	}
 }
 
-// Run executa um Runner em memória e devolve os eventos emitidos.
+// Run executes a Runner in memory and returns the emitted events.
+//
+// It does not start a server: it builds the [agui.Handler] and exercises it
+// with an httptest.ResponseRecorder. It is the shortest path between an agent
+// and the event sequence it produces.
+//
+// PT: Run executa um Runner em memória e devolve os eventos emitidos.
 //
 // Não sobe servidor: monta o [agui.Handler] e o exercita com um
 // httptest.ResponseRecorder. É o caminho mais curto entre um agente e a
 // sequência de eventos que ele produz.
-func Run(t *testing.T, r agui.Runner, in *agui.RunAgentInput, opts ...agui.HandlerOption) []Evento {
+func Run(t *testing.T, r agui.Runner, in *agui.RunAgentInput, opts ...agui.HandlerOption) []Event {
 	t.Helper()
 	return Collect(t, agui.Handler(r, opts...), in)
 }
 
-// Collect exercita um http.Handler com o input dado e devolve os eventos SSE.
-func Collect(t *testing.T, h http.Handler, in *agui.RunAgentInput) []Evento {
+// Collect exercises an http.Handler with the given input and returns the SSE
+// events.
+//
+// PT: Collect exercita um http.Handler com o input dado e devolve os eventos
+// SSE.
+func Collect(t *testing.T, h http.Handler, in *agui.RunAgentInput) []Event {
 	t.Helper()
 
-	corpo, err := json.Marshal(in)
+	body, err := json.Marshal(in)
 	if err != nil {
-		t.Fatalf("aguitest: serializando o RunAgentInput: %v", err)
+		t.Fatalf("aguitest: marshalling the RunAgentInput: %v", err)
 	}
 	req := httptest.NewRequestWithContext(context.Background(),
-		http.MethodPost, "/", bytes.NewReader(corpo))
+		http.MethodPost, "/", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 
 	h.ServeHTTP(rec, req)
 
 	if rec.Code != http.StatusOK {
-		t.Fatalf("aguitest: status %d, corpo %s", rec.Code, rec.Body.String())
+		t.Fatalf("aguitest: status %d, body %s", rec.Code, rec.Body.String())
 	}
 	return ParseSSE(t, rec.Body.Bytes())
 }
 
-// ParseSSE decodifica um fluxo SSE em eventos.
-func ParseSSE(t *testing.T, raw []byte) []Evento {
+// ParseSSE decodes an SSE stream into events.
+//
+// PT: ParseSSE decodifica um fluxo SSE em eventos.
+func ParseSSE(t *testing.T, raw []byte) []Event {
 	t.Helper()
-	var out []Evento
+	var out []Event
 	sc := bufio.NewScanner(bytes.NewReader(raw))
 	sc.Buffer(make([]byte, 0, 64*1024), 4*1024*1024)
 	for sc.Scan() {
-		linha := sc.Text()
-		if !strings.HasPrefix(linha, "data: ") {
-			continue // `id:`/`event:`/linhas em branco não carregam evento
+		line := sc.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue // `id:`/`event:`/blank lines carry no event (PT: não carregam evento)
 		}
-		var ev Evento
-		if err := json.Unmarshal([]byte(strings.TrimPrefix(linha, "data: ")), &ev); err != nil {
-			t.Fatalf("aguitest: quadro SSE ilegível %q: %v", linha, err)
+		var ev Event
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &ev); err != nil {
+			t.Fatalf("aguitest: unreadable SSE frame %q: %v", line, err)
 		}
 		out = append(out, ev)
 	}
 	if err := sc.Err(); err != nil {
-		t.Fatalf("aguitest: lendo o fluxo SSE: %v", err)
+		t.Fatalf("aguitest: reading the SSE stream: %v", err)
 	}
 	return out
 }
 
-// Tipos devolve, em ordem, os tipos dos eventos.
-func Tipos(evs []Evento) []agui.EventType {
+// Types returns, in order, the types of the events.
+//
+// PT: Types devolve, em ordem, os tipos dos eventos.
+func Types(evs []Event) []agui.EventType {
 	out := make([]agui.EventType, 0, len(evs))
 	for _, e := range evs {
-		out = append(out, e.Tipo())
+		out = append(out, e.Type())
 	}
 	return out
 }
 
-// RequireSequence exige que os tipos dos eventos sejam EXATAMENTE os esperados,
+// RequireSequence requires the event types to be EXACTLY want, in order.
+//
+// It takes [agui.EventType] rather than string on purpose: a typo in a string
+// ("TEXT_MESAGE_START") compiles and the test passes comparing two equally
+// wrong values.
+//
+// PT: RequireSequence exige que os tipos dos eventos sejam EXATAMENTE os want,
 // na ordem.
 //
 // Recebe [agui.EventType] e não string de propósito: um typo numa string
 // ("TEXT_MESAGE_START") compila e o teste passa comparando dois valores
 // igualmente errados.
-func RequireSequence(t *testing.T, evs []Evento, esperados ...agui.EventType) {
+func RequireSequence(t *testing.T, evs []Event, want ...agui.EventType) {
 	t.Helper()
-	obtidos := Tipos(evs)
-	if len(obtidos) != len(esperados) {
-		t.Fatalf("aguitest: esperava %d eventos, veio %d\n  esperado: %v\n  obtido:   %v",
-			len(esperados), len(obtidos), esperados, obtidos)
+	got := Types(evs)
+	if len(got) != len(want) {
+		t.Fatalf("aguitest: expected %d events, got %d\n  expected: %v\n  got:      %v",
+			len(want), len(got), want, got)
 	}
-	for i := range esperados {
-		if obtidos[i] != esperados[i] {
-			t.Fatalf("aguitest: evento %d é %s, esperava %s\n  esperado: %v\n  obtido:   %v",
-				i, obtidos[i], esperados[i], esperados, obtidos)
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("aguitest: event %d is %s, expected %s\n  expected: %v\n  got:      %v",
+				i, got[i], want[i], want, got)
 		}
 	}
 }
 
-// RequireContains exige que os tipos apareçam na ordem dada, admitindo outros
-// eventos no meio. Use quando o teste se importa com a ordem relativa e não com
-// a sequência inteira.
-func RequireContains(t *testing.T, evs []Evento, esperados ...agui.EventType) {
+// RequireContains requires the types to appear in the given order, allowing
+// other events in between. Use it when the test cares about the relative order
+// and not about the whole sequence.
+//
+// PT: RequireContains exige que os tipos apareçam na ordem dada, admitindo
+// outros eventos no meio. Use quando o teste se importa com a ordem relativa e
+// não com a sequência inteira.
+func RequireContains(t *testing.T, evs []Event, want ...agui.EventType) {
 	t.Helper()
-	obtidos := Tipos(evs)
+	got := Types(evs)
 	i := 0
-	for _, got := range obtidos {
-		if i < len(esperados) && got == esperados[i] {
+	for _, got := range got {
+		if i < len(want) && got == want[i] {
 			i++
 		}
 	}
-	if i != len(esperados) {
-		t.Fatalf("aguitest: não achei a subsequência %v\n  obtido: %v", esperados, obtidos)
+	if i != len(want) {
+		t.Fatalf("aguitest: subsequence %v not found\n  got: %v", want, got)
 	}
 }
 
-// RequireBalanced verifica os invariantes estruturais do protocolo:
+// RequireBalanced checks the protocol's structural invariants:
+//
+//   - every TEXT_MESSAGE_START has an END, with no overlapping blocks;
+//   - every TOOL_CALL_START has an END, and no ARGS arrives outside an open block;
+//   - the run has EXACTLY one terminal event, and it is the last one.
+//
+// It is the most valuable assertion in this package: on their own, nobody
+// writes this test, and it is precisely the invariant that a bug in block
+// closing breaks — with the symptom "the UI hung", three weeks later.
+//
+// PT: RequireBalanced verifica os invariantes estruturais do protocolo:
 //
 //   - todo TEXT_MESSAGE_START tem END, sem blocos sobrepostos;
 //   - todo TOOL_CALL_START tem END, e nenhum ARGS chega fora de um bloco aberto;
@@ -152,101 +197,108 @@ func RequireContains(t *testing.T, evs []Evento, esperados ...agui.EventType) {
 // É a asserção mais valiosa deste pacote: sozinho, ninguém escreve este teste,
 // e é justamente o invariante que um bug no fechamento de blocos quebra — com
 // sintoma de "a UI ficou pendurada", três semanas depois.
-func RequireBalanced(t *testing.T, evs []Evento) {
+func RequireBalanced(t *testing.T, evs []Event) {
 	t.Helper()
 
-	textoAberto := ""
-	toolsAbertas := map[string]bool{}
-	terminais := 0
+	openText := ""
+	openTools := map[string]bool{}
+	terminals := 0
 
 	for i, e := range evs {
-		switch e.Tipo() {
+		switch e.Type() {
 		case agui.EventTextMessageStart:
-			if textoAberto != "" {
-				t.Fatalf("aguitest: evento %d abre um bloco de texto com %q ainda aberto", i, textoAberto)
+			if openText != "" {
+				t.Fatalf("aguitest: event %d opens a text block with %q still open", i, openText)
 			}
-			textoAberto = e.String("messageId")
+			openText = e.String("messageId")
 		case agui.EventTextMessageChunk:
-			if textoAberto == "" {
-				t.Fatalf("aguitest: evento %d é conteúdo de texto fora de um bloco aberto", i)
+			if openText == "" {
+				t.Fatalf("aguitest: event %d is text content outside an open block", i)
 			}
 		case agui.EventTextMessageEnd:
-			if textoAberto == "" {
-				t.Fatalf("aguitest: evento %d fecha um bloco de texto que não estava aberto", i)
+			if openText == "" {
+				t.Fatalf("aguitest: event %d closes a text block that was not open", i)
 			}
-			textoAberto = ""
+			openText = ""
 		case agui.EventToolCallStart:
 			id := e.String("toolCallId")
 			if id == "" {
-				t.Fatalf("aguitest: evento %d abre uma tool call com toolCallId vazio", i)
+				t.Fatalf("aguitest: event %d opens a tool call with an empty toolCallId", i)
 			}
-			if toolsAbertas[id] {
-				t.Fatalf("aguitest: evento %d reabre a tool call %q", i, id)
+			if openTools[id] {
+				t.Fatalf("aguitest: event %d reopens tool call %q", i, id)
 			}
-			toolsAbertas[id] = true
+			openTools[id] = true
 		case agui.EventToolCallArgs:
-			if id := e.String("toolCallId"); !toolsAbertas[id] {
-				t.Fatalf("aguitest: evento %d manda argumentos para a tool call %q, que não está aberta", i, id)
+			if id := e.String("toolCallId"); !openTools[id] {
+				t.Fatalf("aguitest: event %d sends arguments to tool call %q, which is not open", i, id)
 			}
 		case agui.EventToolCallEnd:
 			id := e.String("toolCallId")
-			if !toolsAbertas[id] {
-				t.Fatalf("aguitest: evento %d fecha a tool call %q, que não estava aberta", i, id)
+			if !openTools[id] {
+				t.Fatalf("aguitest: event %d closes tool call %q, which was not open", i, id)
 			}
-			delete(toolsAbertas, id)
+			delete(openTools, id)
 		case agui.EventRunFinished, agui.EventRunError:
-			terminais++
+			terminals++
 			if i != len(evs)-1 {
-				t.Fatalf("aguitest: evento terminal %s na posição %d, mas há %d eventos",
-					e.Tipo(), i, len(evs))
+				t.Fatalf("aguitest: terminal event %s at position %d, but there are %d events",
+					e.Type(), i, len(evs))
 			}
 		}
 	}
 
-	if textoAberto != "" {
-		t.Fatalf("aguitest: bloco de texto %q ficou aberto no fim do run", textoAberto)
+	if openText != "" {
+		t.Fatalf("aguitest: text block %q left open at the end of the run", openText)
 	}
-	if len(toolsAbertas) > 0 {
-		t.Fatalf("aguitest: tool calls abertas no fim do run: %v", chaves(toolsAbertas))
+	if len(openTools) > 0 {
+		t.Fatalf("aguitest: tool calls left open at the end of the run: %v", keys(openTools))
 	}
-	if terminais != 1 {
-		t.Fatalf("aguitest: o run tem %d eventos terminais, esperava exatamente 1\n  obtido: %v",
-			terminais, Tipos(evs))
+	if terminals != 1 {
+		t.Fatalf("aguitest: the run has %d terminal events, expected exactly 1\n  got: %v",
+			terminals, Types(evs))
 	}
 }
 
-// Primeiro devolve o primeiro evento de um tipo.
-func Primeiro(evs []Evento, tipo agui.EventType) (Evento, bool) {
+// First returns the first event of a type.
+//
+// PT: First devolve o primeiro evento de um tipo.
+func First(evs []Event, typ agui.EventType) (Event, bool) {
 	for _, e := range evs {
-		if e.Tipo() == tipo {
+		if e.Type() == typ {
 			return e, true
 		}
 	}
 	return nil, false
 }
 
-// Todos devolve todos os eventos de um tipo.
-func Todos(evs []Evento, tipo agui.EventType) []Evento {
-	var out []Evento
+// All returns all the events of a type.
+//
+// PT: All devolve todos os eventos de um tipo.
+func All(evs []Event, typ agui.EventType) []Event {
+	var out []Event
 	for _, e := range evs {
-		if e.Tipo() == tipo {
+		if e.Type() == typ {
 			out = append(out, e)
 		}
 	}
 	return out
 }
 
-// TextoConcatenado junta os deltas de TEXT_MESSAGE_CONTENT, que é o texto que o
-// usuário acabaria vendo.
-func TextoConcatenado(evs []Evento) string {
+// ConcatenatedText joins the TEXT_MESSAGE_CONTENT deltas, which is the text
+// the user would end up seeing.
+//
+// PT: ConcatenatedText junta os deltas de TEXT_MESSAGE_CONTENT, que é o texto
+// que o usuário acabaria vendo.
+func ConcatenatedText(evs []Event) string {
 	var b strings.Builder
-	for _, e := range Todos(evs, agui.EventTextMessageChunk) {
+	for _, e := range All(evs, agui.EventTextMessageChunk) {
 		b.WriteString(e.String("delta"))
 	}
 	return b.String()
 }
 
-func chaves(m map[string]bool) []string {
+func keys(m map[string]bool) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {
 		out = append(out, k)
