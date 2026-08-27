@@ -26,7 +26,7 @@ import (
 // collected by [New], which already returns error, aggregated with errors.Join
 // and named:
 //
-//	tool "display_flights": invalid parameter schema: ...
+//	agui: tool "display_flights": invalid parameter schema: ...
 //
 // PT: Os construtores deste arquivo NÃO devolvem erro, e isso é deliberado.
 //

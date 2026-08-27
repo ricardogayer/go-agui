@@ -60,11 +60,12 @@ type (
 	ClientTool = types.Tool
 
 	// Context is an entry of RunAgentInput.context: the application context
-	// injected by the runtime (in lesson 4, the A2UI component catalog).
+	// injected by the runtime (e.g. the A2UI component catalog injected by
+	// CopilotKit's A2UI middleware).
 	//
 	// PT: Context é uma entrada de RunAgentInput.context: o contexto da
-	// aplicação que o runtime injeta (na lição 4, o catálogo de componentes
-	// A2UI).
+	// aplicação que o runtime injeta (ex.: o catálogo de componentes A2UI
+	// injetado pelo middleware A2UI do CopilotKit).
 	Context = types.Context
 
 	// InterruptPoint is the ON-THE-WIRE representation of a pause awaiting a

@@ -1,15 +1,14 @@
-// Package a2ui is the Go port of `copilotkit/a2ui.py` — the generator of the
-// A2UI v0.9 operations that a backend tool returns as its result.
+// Package a2ui generates the A2UI v0.9 operations that a backend tool returns
+// as its result (the Go counterpart of CopilotKit's Python `a2ui` helper).
 //
-// There is nothing model-related here: A2UI is a JSON format, and what the
-// Python did in 246 lines (most of them prompt text that the TypeScript runtime
-// injects on its own) is three constructors and an envelope.
+// There is nothing model-related here: A2UI is a JSON format, and the package
+// is three constructors and an envelope.
 //
 // The path is this: the backend tool (`display_flights`, for example) returns
 // the string produced by Render as the content of the TOOL_CALL_RESULT; the
 // frontend's `@copilotkit/a2ui-renderer` recognizes the `a2ui_operations` key,
 // applies the operations to the surface and renders the components from the
-// React catalog (`frontend/src/catalog/`).
+// application's React catalog.
 //
 // Not to be confused with the `generate_a2ui` tool: that one is injected by the
 // runtime's A2UIMiddleware, arrives as a FRONTEND tool in RunAgentInput.tools
@@ -17,18 +16,17 @@
 // model itself draws the surface. This package serves the FIXED-schema path, in
 // which the server sends a layout it already knows.
 //
-// PT: Package a2ui é o port em Go de `copilotkit/a2ui.py` — o gerador das operações
-// A2UI v0.9 que uma tool de backend devolve como resultado.
+// PT: Package a2ui gera as operações A2UI v0.9 que uma tool de backend devolve
+// como resultado (o equivalente em Go do helper Python `a2ui` do CopilotKit).
 //
-// Não há nada de modelo aqui: A2UI é um formato JSON, e o que o Python fazia em
-// 246 linhas (a maior parte delas texto de prompt que o runtime TypeScript
-// injeta sozinho) são três construtores e um envelope.
+// Não há nada de modelo aqui: A2UI é um formato JSON, e o pacote são três
+// construtores e um envelope.
 //
 // O caminho é este: a tool de backend (`display_flights`, por exemplo) devolve a
 // string produzida por Render como conteúdo do TOOL_CALL_RESULT; o
 // `@copilotkit/a2ui-renderer` do frontend reconhece a chave `a2ui_operations`,
 // aplica as operações na superfície e renderiza os componentes do catálogo React
-// (`frontend/src/catalog/`).
+// da aplicação.
 //
 // Não confundir com a tool `generate_a2ui`: aquela é injetada pelo
 // A2UIMiddleware do runtime, chega como tool de FRONTEND em RunAgentInput.tools
@@ -56,14 +54,13 @@ const (
 	// Python).
 	OperationsKey = "a2ui_operations"
 
-	// BasicCatalogID is the default catalog of the v0.9 specification. This
-	// lesson does not use it — it registers its own catalog in
-	// `frontend/src/catalog/` — but the value is kept because it is the default
-	// of the Python helper.
+	// BasicCatalogID is the default catalog of the v0.9 specification and the
+	// default of the Python helper. Applications that register their own React
+	// catalog pass its id to [Render] explicitly.
 	//
-	// PT: BasicCatalogID é o catálogo padrão da especificação v0.9. Esta lição não o
-	// usa — ela registra o próprio catálogo em `frontend/src/catalog/` —, mas o
-	// valor é mantido porque é o default do helper Python.
+	// PT: BasicCatalogID é o catálogo padrão da especificação v0.9 e o default
+	// do helper Python. Aplicações que registram o próprio catálogo React
+	// passam o id dele a [Render] explicitamente.
 	BasicCatalogID = "https://a2ui.org/specification/v0_9/basic_catalog.json"
 )
 

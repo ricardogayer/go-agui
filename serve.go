@@ -69,7 +69,8 @@ func NormalizeHealthPath(next http.Handler) http.Handler {
 //
 // There is no WriteTimeout, and that is deliberate: an SSE run lasts as long as
 // the conversation and a write deadline would cut it midway. ReadHeaderTimeout
-// is present, which is what protects against idle connections.
+// is present, which is what protects against clients that never finish
+// sending their headers.
 //
 // This function does NOT register flags nor read the command line — a library
 // that calls flag.Parse breaks the caller's FlagSet, and `go test`. See
@@ -80,7 +81,7 @@ func NormalizeHealthPath(next http.Handler) http.Handler {
 //
 // Não há WriteTimeout, e isso é deliberado: um run SSE dura o tempo da conversa
 // e um prazo de escrita o cortaria no meio. ReadHeaderTimeout está presente,
-// que é o que protege contra conexões ociosas.
+// que é o que protege contra clientes que nunca terminam de enviar os headers.
 //
 // Esta função NÃO registra flags nem lê a linha de comando — uma biblioteca que
 // chama flag.Parse quebra o FlagSet de quem a usa, e o `go test`. Ver

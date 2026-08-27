@@ -38,6 +38,12 @@ type Agent struct {
 	//
 	// PT: infos são os schemas anunciados ao modelo, na ordem de registro.
 	infos []*schema.ToolInfo
+	// clientOnly are the tools registered with [NewClientTool]: announced by
+	// the server, executed by the client.
+	//
+	// PT: clientOnly são as tools registradas com [NewClientTool]: anunciadas
+	// pelo servidor, executadas pelo cliente.
+	clientOnly map[string]bool
 }
 
 // New builds an agent on top of an Eino chat model.
@@ -75,10 +81,11 @@ func New(ctx context.Context, m model.ToolCallingChatModel, opts ...Option) (*Ag
 	}
 
 	a := &Agent{
-		base:      m,
-		opts:      cfg,
-		invokable: make(map[string]tool.InvokableTool, len(cfg.tools)),
-		infos:     make([]*schema.ToolInfo, 0, len(cfg.tools)),
+		base:       m,
+		opts:       cfg,
+		invokable:  make(map[string]tool.InvokableTool, len(cfg.tools)),
+		infos:      make([]*schema.ToolInfo, 0, len(cfg.tools)),
+		clientOnly: make(map[string]bool),
 	}
 
 	var errs []error
@@ -104,6 +111,8 @@ func New(ctx context.Context, m model.ToolCallingChatModel, opts ...Option) (*Ag
 		a.infos = append(a.infos, info)
 		if inv, ok := t.(tool.InvokableTool); ok {
 			a.invokable[info.Name] = inv
+		} else {
+			a.clientOnly[info.Name] = true
 		}
 	}
 	if len(errs) > 0 {
@@ -117,14 +126,18 @@ func New(ctx context.Context, m model.ToolCallingChatModel, opts ...Option) (*Ag
 //
 // RUN_STARTED has already been emitted by [Handler]; do not repeat it. The
 // returned error is for the transport to log — the corresponding terminal
-// event has already been emitted here.
+// event has already been emitted here, except when the run was aborted by a
+// cancelled context or a dead client, in which case [Handler] emits RUN_ERROR
+// if the stream is still open.
 //
 // PT: Run executa um run AG-UI completo, do primeiro turno do modelo ao evento
 // terminal.
 //
 // RUN_STARTED já foi emitido por [Handler]; não o repita. O erro devolvido é
 // para o transporte registrar — o evento terminal correspondente já foi emitido
-// aqui.
+// aqui, exceto quando o run foi abortado por contexto cancelado ou cliente
+// desconectado, caso em que [Handler] emite RUN_ERROR se o stream ainda estiver
+// aberto.
 func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error {
 	start := time.Now()
 	logger := a.opts.logger.With("thread", emit.ThreadID(), "run", emit.RunID())
@@ -156,6 +169,9 @@ func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error
 	//    modelo, que não distingue entre elas — quem separa é o laço, mais
 	//    abaixo.
 	clientNames := ClientToolNames(in.Tools)
+	for name := range a.clientOnly {
+		clientNames[name] = true
+	}
 	cm, err := a.bindTools(in, logger)
 	if err != nil {
 		emit.RunError("failed to bind tools to the model")
@@ -451,9 +467,10 @@ func (a *Agent) runServerTool(
 	t, ok := a.invokable[name]
 	if !ok {
 		logger.Warn("the model called a nonexistent tool", "tool", name)
-		return fmt.Sprintf(
-			`{"error":"unknown tool %q: callable tools are %s"}`,
-			name, jsonList(a.toolNames(clientNames))), nil, nil
+		msg, _ := json.Marshal(map[string]string{"error": fmt.Sprintf(
+			"unknown tool %q: callable tools are %s",
+			name, jsonList(a.toolNames(clientNames)))})
+		return string(msg), nil, nil
 	}
 
 	// The RunContext of this call: this is how the tool reaches the emitter,
@@ -495,7 +512,9 @@ func (a *Agent) toolNames(clientNames map[string]bool) []string {
 		names = append(names, info.Name)
 	}
 	for name := range clientNames {
-		names = append(names, name)
+		if !a.clientOnly[name] { // already listed via infos (PT: já listada via infos)
+			names = append(names, name)
+		}
 	}
 	sort.Strings(names) // map iteration is random; the message would be unstable (PT: a iteração de um map é aleatória; a mensagem seria instável)
 	return names

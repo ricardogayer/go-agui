@@ -61,14 +61,17 @@ The AG-UI contract it implements is the same one the Python adapter
 | Route | What it does |
 |---|---|
 | `POST /` | receives a `RunAgentInput` in JSON, responds `text/event-stream` with AG-UI events |
-| `GET /health` | healthcheck with `{"status":"ok","agent":{"name":...}}` |
+| `GET /health` | healthcheck with `{"agent":{"name":...},"status":"ok"}` |
 | `GET //health` | same, rewritten to `/health` (compatibility with probes written against the Python backend) |
 
-A complete run emits, in order: `RUN_STARTED`, `STEP_STARTED`, the text blocks
-(`TEXT_MESSAGE_START` / `_CONTENT` / `_END`) and tool call blocks
-(`TOOL_CALL_START` / `_ARGS` / `_END` / `_RESULT`), `STEP_FINISHED`,
-`STATE_SNAPSHOT`, `MESSAGES_SNAPSHOT` and exactly **one** terminal event
-(`RUN_FINISHED` or `RUN_ERROR`).
+A complete run emits, in order: `RUN_STARTED`; then, per iteration of the loop,
+a `STEP_STARTED` / `STEP_FINISHED` pair (step `"model"`) enclosing the text
+blocks (`TEXT_MESSAGE_START` / `_CONTENT` / `_END`) and tool call blocks
+(`TOOL_CALL_START` / `_ARGS` / `_END`), and — when the server executes tools — a
+second pair (step `"tools"`) enclosing the `TOOL_CALL_RESULT`s and any
+`STATE_DELTA`s the tools emit; then `STATE_SNAPSHOT`, `MESSAGES_SNAPSHOT` and
+exactly **one** terminal event (`RUN_FINISHED` or `RUN_ERROR`). On a fatal error
+(model failure, tool binding) `RUN_ERROR` goes out without the two snapshots.
 
 The model↔tools loop behind this is Eino: the chat model is a
 `model.ToolCallingChatModel`, and a tool is a `tool.BaseTool`. That's not an
@@ -87,7 +90,8 @@ go get github.com/ricardogayer/go-agui/model@v0.2.0   # model providers (optiona
 go get github.com/ricardogayer/go-agui/ginx@v0.2.0    # Gin adapter (optional)
 ```
 
-Three modules, on purpose. The core depends only on the AG-UI SDK, Eino and two
+Three published modules, on purpose (a fourth, `examples`, exists only in the
+repository). The core depends only on the AG-UI SDK, Eino and two
 utilities — no web framework, no provider client. Whoever uses `chi` doesn't drag
 in Gin; whoever already has their own `ChatModel` doesn't drag in `eino-ext`.
 
@@ -111,7 +115,8 @@ curl -N -X POST localhost:8000 -H 'content-type: application/json' \
   -d '{"threadId":"t1","runId":"r1","messages":[{"id":"m1","role":"user","content":"hi"}]}'
 ```
 
-You see the raw SSE frames: `RUN_STARTED`, `TEXT_MESSAGE_START`, the deltas,
+You see the raw SSE frames: `RUN_STARTED`, `STEP_STARTED`, `TEXT_MESSAGE_START`,
+the deltas, `TEXT_MESSAGE_END`, `STEP_FINISHED`, `STATE_SNAPSHOT`,
 `MESSAGES_SNAPSHOT`, `RUN_FINISHED`.
 
 ---
@@ -126,7 +131,10 @@ which is already an `agui.Runner` — what any transport needs.
 ```go
 ag, err := agui.New(ctx, m,
 	agui.WithSystemPrompt("You help plan trips."),
-	agui.WithTools(searchFlights, setTheme),
+	agui.WithTools(
+		agui.NewTool("search_flights", "Searches flights.", searchFlights),
+		agui.NewTool("set_theme", "Changes the UI theme.", setTheme),
+	),
 	agui.WithMaxIterations(6),
 )
 ```
@@ -247,7 +255,7 @@ ag, err := agui.New(ctx, m, agui.WithTools(
 	agui.NewTool("a", "...", fnA),
 	agui.NewRawTool("b", "...", schemaB, fnB),
 ))
-// err: tool "b": invalid parameter schema: ...
+// err: agui: tool "b": invalid parameter schema: ...
 ```
 
 The reason is a language one: in Go, a two-value expression can only be the
@@ -262,7 +270,10 @@ Everything else about the run arrives through the context:
 ```go
 func changeTheme(ctx context.Context, in ThemeArgs) (string, error) {
 	rc := agui.MustFromContext(ctx)
-	rc.State().Set("/theme", in.Theme)   // applies AND emits the STATE_DELTA
+	// applies AND emits the STATE_DELTA; errors if the parent path is missing
+	if err := rc.State().Set("/theme", in.Theme); err != nil {
+		return "", err
+	}
 	return `{"ok":true}`, nil
 }
 ```
@@ -296,6 +307,7 @@ st.Remove("/draft")             // same
 st.Apply(ops)                   // atomic batch: all or nothing
 v, ok := st.Get("/theme")       // read by JSON Pointer (RFC 6901)
 snap := st.Snapshot()           // deep copy
+st.Emit()                       // publishes the whole document as STATE_SNAPSHOT
 ```
 
 `Set` uses `add` and not `replace` because, in RFC 6902, `add` replaces a member
@@ -683,12 +695,12 @@ aguitest.RequireContains(t, evs, agui.EventToolCallResult, agui.EventRunFinished
 `RequireBalanced` is the assertion nobody writes on their own and that pays off
 the most: every `START` has an `END`, no block overlaps, and the run has exactly
 **one** terminal event, at the end. There's also `RequireSequence` (the exact
-sequence), `Collect`/`ParseSSE` (to exercise an `http.Handler`), plus
-`First`/`All`/`Types` and `ConcatenatedText` (concatenated
-text).
+sequence), `Collect` (to exercise an `http.Handler`), `ParseSSE` (to decode a raw SSE
+stream), plus `First`/`All`/`Types` and `ConcatenatedText`.
 
 On the other side, `FakeModel.Calls()` returns the messages the model received on
-each call, and `BoundTools()` the tool sets that were bound — that's what lets you
+each call, and `BoundTools()` the tool sets that were bound (`LastCall()` and
+`LastBoundNames()` are shortcuts to the most recent ones) — that's what lets you
 assert about what the agent **assembled** (was the system prompt injected? is the
 context block there? did `RepairToolPairs` reorder the history?), and not just
 about what it emitted.
@@ -737,9 +749,9 @@ backends read, so an existing `.env` keeps working.
 | `MODEL` | model id |
 | `OPENAI_API_KEY` | credential, required for `openai` |
 | `OPENAI_BASE_URL` | alternative endpoint (compatible gateway) |
-| `OPENAI_REASONING_EFFORT` | `none` is **mandatory** on OpenAI's reasoning models: they reject function tools at the default effort, and an AG-UI agent puts everything through function tools |
+| `OPENAI_REASONING_EFFORT` | `none`, `low`, `medium` or `high` (empty omits the field). `none` is **mandatory** on OpenAI's reasoning models: they reject function tools at the default effort, and an AG-UI agent puts everything through function tools |
 | `OLLAMA_BASE_URL` | Ollama endpoint (default `http://localhost:11434`) |
-| `HOST` / `PORT` | listen address |
+| `HOST` / `PORT` | listen address, read by `agui.Addr` (defaults `0.0.0.0` and the port passed to `Addr`; an invalid `PORT` is ignored) |
 
 ## Healthcheck in a distroless container
 
@@ -753,7 +765,7 @@ var probe = flag.Bool("healthcheck", false, "queries the local /health and exits
 func main() {
 	flag.Parse()
 	if *probe {
-		if err := agui.CheckHealth("http://127.0.0.1:8000/health"); err != nil {
+		if err := agui.CheckHealth("http://127.0.0.1:8000/health"); err != nil { // 3 s timeout
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
@@ -772,13 +784,16 @@ and reports "healthy" with the agent broken.
 
 ## Development
 
-The repository has four modules tied together by a `go.work`. The `Makefile` runs
-the targets across all of them:
+The repository has four modules tied together by a `go.work` (which requires Go
+1.25+ to build the repository as a whole). The `Makefile` runs the targets across
+all of them:
 
 ```bash
 make build      # builds all modules
 make test       # runs the tests of all of them
-make lint       # gofmt + go vet
+make vet        # go vet across all
+make fmt        # gofmt -w
+make lint       # gofmt check (use `make fmt` to fix) + go vet
 make tidy       # go mod tidy across all
 make quickstart # brings up the minimal example on :8000
 ```

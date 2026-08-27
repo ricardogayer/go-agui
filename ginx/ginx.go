@@ -53,19 +53,17 @@ func Health(agentName string) gin.HandlerFunc {
 
 // Register mounts `POST /` and `GET /health` on the router.
 //
-// It also installs the normalization of `//health` — the path a probe written
-// against the Python backend uses, and which Gin's router refuses to register
-// directly ("handlers are already registered for path '/health'"), because it
-// normalizes the doubled slash before matching the route. See
-// [agui.NormalizeHealthPath].
+// It does NOT handle `//health` — the path a probe written against the Python
+// backend uses, and which Gin's router refuses to register directly ("handlers
+// are already registered for path '/health'"). Wrap the engine with
+// [agui.NormalizeHealthPath] yourself, which is what [ListenAndServe] does.
 //
 // PT: Register monta `POST /` e `GET /health` no roteador.
 //
-// Também instala a normalização de `//health` — o caminho que uma sonda
-// escrita contra o backend Python usa, e que o roteador do Gin recusa registrar
-// diretamente ("handlers are already registered for path '/health'"), porque
-// ele normaliza a barra dobrada antes de casar a rota. Ver
-// [agui.NormalizeHealthPath].
+// NÃO trata `//health` — o caminho que uma sonda escrita contra o backend
+// Python usa, e que o roteador do Gin recusa registrar diretamente ("handlers
+// are already registered for path '/health'"). Envolva o engine com
+// [agui.NormalizeHealthPath] você mesmo, que é o que [ListenAndServe] faz.
 func Register(r gin.IRouter, runner agui.Runner, agentName string, opts ...agui.HandlerOption) {
 	r.POST("/", Handler(runner, opts...))
 	r.GET("/health", Health(agentName))
@@ -102,6 +100,12 @@ func ListenAndServe(ctx context.Context, addr string, runner agui.Runner, agentN
 	for _, o := range opts {
 		o(cfg)
 	}
+	// The runs are tied to ctx by default, so in-flight streams end on
+	// shutdown; a WithShutdownContext passed by the caller wins.
+	//
+	// PT: Os runs ficam ligados a ctx por padrão, para os streams em curso
+	// terminarem no desligamento; um WithShutdownContext do chamador prevalece.
+	opts = append([]Option{WithHandlerOptions(agui.WithShutdownContext(ctx))}, opts...)
 	engine := Engine(runner, agentName, opts...)
 	return agui.ListenAndServe(ctx, addr,
 		agui.NormalizeHealthPath(engine), cfg.serve...)
@@ -133,10 +137,10 @@ func WithCORS() Option {
 }
 
 // WithHandlerOptions passes options on to the AG-UI handler (logger, shutdown
-// context, dropped-event callback).
+// context, dropped-event callback, max body size).
 //
 // PT: WithHandlerOptions repassa opções ao handler AG-UI (logger, contexto de
-// desligamento, callback de evento descartado).
+// desligamento, callback de evento descartado, tamanho máximo do corpo).
 func WithHandlerOptions(opts ...agui.HandlerOption) Option {
 	return func(o *options) { o.handler = append(o.handler, opts...) }
 }

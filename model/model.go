@@ -47,12 +47,12 @@ const (
 // Config describes the model to build.
 //
 // It is a narrow struct on purpose: a library should not receive the whole
-// application's Config just to read three fields.
+// application's Config just to read a handful of fields.
 //
 // PT: Config descreve o modelo a construir.
 //
 // É um struct estreito de propósito: uma biblioteca não deve receber o Config
-// da aplicação inteira só para ler três campos.
+// da aplicação inteira só para ler meia dúzia de campos.
 type Config struct {
 	// Provider is "openai" or "ollama". Empty is equivalent to "openai".
 	//

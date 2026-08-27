@@ -329,3 +329,62 @@ func contains(hay []string, needle string) bool {
 	}
 	return false
 }
+
+// ── client tools declared on the server / tools de cliente declaradas no servidor ──
+
+func TestServerDeclaredClientToolHandsControlBackToTheClient(t *testing.T) {
+	m := aguitest.NewFakeModel(aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{
+		{ID: "call_1", Name: "show_chart", Args: `{"kind":"bar"}`},
+	}})
+	ag := newAgent(t, m, agui.WithTools(
+		addTool(),
+		agui.NewClientTool("show_chart", "Renders a chart.",
+			json.RawMessage(`{"type":"object","properties":{"kind":{"type":"string"}}}`)),
+	))
+
+	evs := aguitest.Run(t, ag, aguitest.Input("show a chart"))
+
+	aguitest.RequireBalanced(t, evs)
+	// Same path as a frontend tool: no TOOL_CALL_RESULT, no second model turn.
+	//
+	// PT: Mesmo caminho de uma tool de frontend: sem TOOL_CALL_RESULT, sem
+	// segundo turno do modelo.
+	if _, ok := aguitest.First(evs, agui.EventToolCallResult); ok {
+		t.Fatal("the server must not execute a NewClientTool")
+	}
+	if evs[len(evs)-1].Type() != agui.EventRunFinished {
+		t.Fatalf("ended with %s, want RUN_FINISHED", evs[len(evs)-1].Type())
+	}
+	if n := len(m.Calls()); n != 1 {
+		t.Fatalf("model called %d times, want 1 (control must return to the client)", n)
+	}
+	if !contains(m.LastBoundNames(), "show_chart") {
+		t.Fatalf("bound tools = %v, want to contain 'show_chart'", m.LastBoundNames())
+	}
+}
+
+func TestUnknownToolResultIsValidJSON(t *testing.T) {
+	m := aguitest.NewFakeModel(
+		aguitest.Turn{ToolCalls: []aguitest.FakeToolCall{
+			{ID: "call_1", Name: "nonexistent", Args: `{}`},
+		}},
+		aguitest.Turn{Text: "sorry"},
+	)
+	ag := newAgent(t, m, agui.WithTools(addTool()))
+
+	evs := aguitest.Run(t, ag, aguitest.Input("do something"))
+
+	res, ok := aguitest.First(evs, agui.EventToolCallResult)
+	if !ok {
+		t.Fatal("missing TOOL_CALL_RESULT")
+	}
+	var body struct {
+		Error string `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(res.String("content")), &body); err != nil {
+		t.Fatalf("result is not valid JSON: %v\n%s", err, res.String("content"))
+	}
+	if !strings.Contains(body.Error, `unknown tool "nonexistent"`) {
+		t.Fatalf("error = %q", body.Error)
+	}
+}

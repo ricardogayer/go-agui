@@ -68,9 +68,10 @@ func (e *InterruptError) Error() string {
 // Interrupt returns the error that pauses the run for a human decision.
 //
 // The tool returns it like any other error; the loop recognizes the type, ends
-// the run with RUN_FINISHED carrying the interrupt outcome, and stores the
-// pending calls. The client answers in RunAgentInput.resume, and on the next
-// pass the tool retrieves the answer via [RunContext.ResumeFor]:
+// the run with RUN_FINISHED carrying the interrupt outcome, and leaves the
+// pending call unanswered in the MESSAGES_SNAPSHOT (nothing is stored on the
+// server). The client answers in RunAgentInput.resume, and on the next pass
+// the tool retrieves the answer via [RunContext.ResumeFor]:
 //
 //	func approvePurchase(ctx context.Context, in Purchase) (string, error) {
 //		rc := agui.MustFromContext(ctx)
@@ -99,8 +100,9 @@ func (e *InterruptError) Error() string {
 // PT: Interrupt devolve o erro que pausa o run para uma decisão humana.
 //
 // A tool o devolve como qualquer outro erro; o laço reconhece o tipo, encerra o
-// run com RUN_FINISHED carregando o outcome de interrupt, e guarda as chamadas
-// pendentes. O cliente responde em RunAgentInput.resume, e na próxima passagem
+// run com RUN_FINISHED carregando o outcome de interrupt, e deixa a chamada
+// pendente sem resposta no MESSAGES_SNAPSHOT (nada é guardado no servidor). O
+// cliente responde em RunAgentInput.resume, e na próxima passagem
 // a tool recupera a resposta por [RunContext.ResumeFor], como no exemplo acima.
 //
 // # Por que um sinal próprio e não o tool.Interrupt do Eino

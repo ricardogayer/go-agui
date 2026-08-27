@@ -106,11 +106,10 @@ func (c *Conversation) AppendWithID(m *schema.Message, id string) {
 func (c *Conversation) Len() int { return len(c.msgs) }
 
 // Messages returns the raw messages, without repair or system prompt. It is
-// meant for inspection and for a [MessagePreprocessor]; do not mutate the
-// result.
+// meant for inspection (e.g. from a custom [Runner]); do not mutate the result.
 //
 // PT: Messages devolve as mensagens cruas, sem reparo nem system prompt. Serve
-// para inspeção e para um [MessagePreprocessor]; não mute o resultado.
+// para inspeção (ex.: de um [Runner] customizado); não mute o resultado.
 func (c *Conversation) Messages() []*schema.Message { return c.msgs }
 
 // ModelInput returns the messages to send to the model, with the system

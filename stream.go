@@ -221,9 +221,9 @@ func toolCallKey(tc schema.ToolCall) string {
 // uncorrelatable (no response can be associated with it) and leaves the
 // message entirely.
 //
-// This is not zeal: an empty toolCallId is rejected by the SDK, and a rejected
-// event would be read by the Emitter as a disconnection — the run would die
-// silently, without RUN_ERROR.
+// This is not zeal: an empty toolCallId is rejected by the SDK; the Emitter
+// would drop the event (ErrEventDropped) and the client would see a call with
+// no TOOL_CALL_START.
 //
 // PT: validateToolCalls separa as tool calls emitidas pelo modelo entre as que
 // ficam na mensagem do assistente (toda chamada mantida precisa de uma resposta
@@ -234,9 +234,9 @@ func toolCallKey(tc schema.ToolCall) string {
 // turno seguinte, mas não é encaminhada. Uma chamada sem id é incorrelacionável
 // (nenhuma resposta pode ser associada a ela) e sai da mensagem por completo.
 //
-// Isto não é zelo: um toolCallId vazio é recusado pelo SDK, e um evento
-// recusado seria lido pelo Emitter como desconexão — o run morreria em
-// silêncio, sem RUN_ERROR.
+// Isto não é zelo: um toolCallId vazio é recusado pelo SDK; o Emitter
+// descartaria o evento (ErrEventDropped) e o cliente veria uma chamada sem
+// TOOL_CALL_START.
 func validateToolCalls(logger *slog.Logger, assistant *schema.Message, conv *Conversation) []schema.ToolCall {
 	kept := make([]schema.ToolCall, 0, len(assistant.ToolCalls))
 	actionable := make([]schema.ToolCall, 0, len(assistant.ToolCalls))

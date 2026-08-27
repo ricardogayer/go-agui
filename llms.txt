@@ -5,10 +5,10 @@
 Fatos essenciais:
 
 - Versão atual: v0.2.0 (tags `v0.2.0`, `model/v0.2.0`, `ginx/v0.2.0`).
-- Módulos: núcleo `github.com/ricardogayer/go-agui` (agente, handler, emitter, estado, tools); `.../model` (OpenAI e Ollama via eino-ext); `.../ginx` (adaptador Gin); `.../aguitest` (FakeModel e asserções); `.../a2ui` (operações A2UI v0.9).
+- Módulos publicados: núcleo `github.com/ricardogayer/go-agui` (agente, handler, emitter, estado, tools); `.../model` (OpenAI e Ollama via eino-ext); `.../ginx` (adaptador Gin). Pacotes dentro do módulo núcleo (não são módulos separados): `.../aguitest` (FakeModel e asserções) e `.../a2ui` (operações A2UI v0.9).
 - Requisitos: Go 1.24.4+ (núcleo e model); Go 1.25+ (ginx e exemplos).
 - O chat model é um `model.ToolCallingChatModel` do Eino; uma tool é um `tool.BaseTool` do Eino — qualquer tool do ecossistema eino-ext (MCP etc.) entra sem adaptador.
-- Um run emite, na ordem: `RUN_STARTED`, `STEP_STARTED`, blocos de texto (`TEXT_MESSAGE_START/_CONTENT/_END`) e de tool call (`TOOL_CALL_START/_ARGS/_END/_RESULT`), `STEP_FINISHED`, `STATE_SNAPSHOT`, `MESSAGES_SNAPSHOT` e exatamente UM evento terminal (`RUN_FINISHED` ou `RUN_ERROR`).
+- Um run emite, na ordem: `RUN_STARTED`; por iteração do laço, um par `STEP_STARTED`/`STEP_FINISHED` (step `"model"`) com os blocos de texto (`TEXT_MESSAGE_START/_CONTENT/_END`) e de tool call (`TOOL_CALL_START/_ARGS/_END`) e, quando o servidor executa tools, um segundo par (step `"tools"`) com os `TOOL_CALL_RESULT`s e os `STATE_DELTA`s que as tools emitirem; então `STATE_SNAPSHOT`, `MESSAGES_SNAPSHOT` e exatamente UM evento terminal (`RUN_FINISHED` ou `RUN_ERROR`). Em erro fatal (modelo, ligação de tools) o `RUN_ERROR` sai sem os snapshots.
 - Não há estado de sessão no servidor (o AG-UI reenvia o histórico inteiro a cada requisição) — escala horizontal é livre.
 - `*Agent` é seguro para uso concorrente e não é mutado por requisição.
 
@@ -99,7 +99,7 @@ agui.NewClientTool("show_chart", "Renderiza um gráfico na tela.",
 	json.RawMessage(`{"type":"object","properties":{"titulo":{"type":"string"}}}`))
 ```
 
-Os construtores NÃO devolvem `error`: o erro fica retido na tool e é colhido por `agui.New`, agregado e nomeado (ex.: `tool "b": invalid parameter schema: ...`). Isso permite `WithTools(NewTool(...), NewRawTool(...))` sem cerimônia.
+Os construtores NÃO devolvem `error`: o erro fica retido na tool e é colhido por `agui.New`, agregado e nomeado (ex.: `agui: tool "b": invalid parameter schema: ...`). Isso permite `WithTools(NewTool(...), NewRawTool(...))` sem cerimônia.
 
 ### Dentro de uma tool — RunContext
 
@@ -271,7 +271,7 @@ aguitest.RequireBalanced(t, evs) // todo START tem END, sem sobreposição, UM t
 aguitest.RequireContains(t, evs, agui.EventToolCallResult, agui.EventRunFinished)
 ```
 
-Também: `RequireSequence` (sequência exata), `Collect`/`ParseSSE` (exercitar um `http.Handler`), `First`/`All`/`Types`/`ConcatenatedText`, `FakeModel.Calls()` (mensagens que o modelo recebeu) e `BoundTools()` (tools ligadas) — para afirmar sobre o que o agente MONTOU, não só o que emitiu.
+Também: `RequireSequence` (sequência exata), `Collect` (exercita um `http.Handler`), `ParseSSE` (decodifica um stream SSE cru), `First`/`All`/`Types`/`ConcatenatedText`, `FakeModel.Calls()` (mensagens que o modelo recebeu) e `BoundTools()` (tools ligadas) — para afirmar sobre o que o agente MONTOU, não só o que emitiu.
 
 ## Armadilhas do protocolo que a biblioteca já resolve
 
