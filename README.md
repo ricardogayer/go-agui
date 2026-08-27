@@ -82,9 +82,9 @@ examples.
 ## Installation
 
 ```bash
-go get github.com/ricardogayer/go-agui
-go get github.com/ricardogayer/go-agui/model   # model providers (optional)
-go get github.com/ricardogayer/go-agui/ginx    # Gin adapter (optional)
+go get github.com/ricardogayer/go-agui@v0.2.0
+go get github.com/ricardogayer/go-agui/model@v0.2.0   # model providers (optional)
+go get github.com/ricardogayer/go-agui/ginx@v0.2.0    # Gin adapter (optional)
 ```
 
 Three modules, on purpose. The core depends only on the AG-UI SDK, Eino and two
@@ -458,9 +458,9 @@ Gin doesn't end up in the `go.mod` of whoever uses `chi`, `echo` or plain
 mkdir my-agent && cd my-agent
 go mod init github.com/you/my-agent
 
-go get github.com/ricardogayer/go-agui
-go get github.com/ricardogayer/go-agui/ginx
-go get github.com/ricardogayer/go-agui/model
+go get github.com/ricardogayer/go-agui@v0.2.0
+go get github.com/ricardogayer/go-agui/ginx@v0.2.0
+go get github.com/ricardogayer/go-agui/model@v0.2.0
 ```
 
 ### 2. The `main.go`

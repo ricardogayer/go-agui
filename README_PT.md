@@ -83,9 +83,9 @@ exemplos.
 ## Instalação
 
 ```bash
-go get github.com/ricardogayer/go-agui
-go get github.com/ricardogayer/go-agui/model   # provedores de modelo (opcional)
-go get github.com/ricardogayer/go-agui/ginx    # adaptador Gin (opcional)
+go get github.com/ricardogayer/go-agui@v0.2.0
+go get github.com/ricardogayer/go-agui/model@v0.2.0   # provedores de modelo (opcional)
+go get github.com/ricardogayer/go-agui/ginx@v0.2.0    # adaptador Gin (opcional)
 ```
 
 São três módulos de propósito. O núcleo depende apenas do SDK AG-UI, do Eino e
@@ -459,9 +459,9 @@ puro.
 mkdir meu-agente && cd meu-agente
 go mod init github.com/voce/meu-agente
 
-go get github.com/ricardogayer/go-agui
-go get github.com/ricardogayer/go-agui/ginx
-go get github.com/ricardogayer/go-agui/model
+go get github.com/ricardogayer/go-agui@v0.2.0
+go get github.com/ricardogayer/go-agui/ginx@v0.2.0
+go get github.com/ricardogayer/go-agui/model@v0.2.0
 ```
 
 ### 2. O `main.go`
