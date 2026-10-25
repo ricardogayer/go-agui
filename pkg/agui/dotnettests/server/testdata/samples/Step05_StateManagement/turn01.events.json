@@ -1,0 +1,317 @@
+[
+ {
+  "type": "RUN_STARTED",
+  "threadId": "thread_Id_1",
+  "runId": "run_Id_1",
+  "protocolVersion": "1.0"
+ },
+ {
+  "type": "STATE_SNAPSHOT",
+  "snapshot": {
+   "recipe": {
+    "title": "Spaghetti alla Carbonara (Classic Italian Carbonara)",
+    "cuisine": "Italian",
+    "ingredients": [
+     "400 g (14 oz) dried spaghetti",
+     "150 g (5 oz) guanciale (or pancetta if unavailable), cut into 1 cm/½ in strips",
+     "3 large eggs + 1 large egg yolk",
+     "100 g (1 cup) freshly grated Pecorino Romano (or a mix Pecorino/Parmesan)",
+     "Freshly ground black pepper, generous (to taste)",
+     "Salt (for the pasta water)",
+     "1–2 tablespoons pasta cooking water (reserved from boiling)",
+     "Optional: a handful chopped flat-leaf parsley for garnish"
+    ],
+    "steps": [
+     "Bring a large pot of water to a rolling boil. Salt it generously (it should taste like the sea). Add the spaghetti and cook until just shy of al dente according to package directions (about 8–9 minutes for most dried spaghetti).",
+     "While the pasta cooks, place the guanciale in a cold skillet, then set over medium heat. Cook gently, stirring occasionally, until the fat renders and the meat is crisp and golden (about 6–8 minutes). Remove from heat and keep the pan warm.",
+     "In a mixing bowl, whisk together the 3 whole eggs and the extra yolk with the grated Pecorino Romano until smooth. Add a very generous amount of freshly ground black pepper (at least ¼–½ teaspoon). The mixture should be thick and creamy.",
+     "When the pasta is about 1 minute from done, scoop out and reserve about 1 cup (240 ml) of the starchy cooking water, then drain the spaghetti.",
+     "Immediately add the hot drained spaghetti to the skillet with the guanciale (off the direct heat). Toss to coat the pasta in the rendered fat so it picks up flavor.",
+     "Pour the egg-and-cheese mixture over the hot pasta. Using tongs or a fork, toss continuously and vigorously so the eggs emulsify into a creamy sauce instead of scrambling. If the sauce seems too thick, add a tablespoon or two of the reserved pasta water at a time until you reach a silky, clingy consistency.",
+     "Continue tossing until the sauce coats every strand of spaghetti and the texture is smooth and glossy. Taste and adjust: add more black pepper and a little reserved pasta water if needed. Be careful with additional salt—the Pecorino and guanciale are already salty.",
+     "Divide the pasta among warmed plates or bowls. Finish with an extra sprinkle of grated Pecorino Romano and another crack of fresh black pepper.",
+     "Garnish with chopped parsley if using, and serve immediately. Carbonara is best enjoyed right away while luxuriously creamy."
+    ],
+    "prep_time_minutes": 10,
+    "cook_time_minutes": 15,
+    "skill_level": "intermediate"
+   }
+  }
+ },
+ {
+  "type": "TEXT_MESSAGE_START",
+  "messageId": "chatcmpl-Id_1",
+  "role": "assistant"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "Classic"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " Sp"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "aghetti"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " alla"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " Carbon"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "ara"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " combines"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " hot"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " spaghetti"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " with"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " crisp"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " gu"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "ancial"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "e"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " and"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " a"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " creamy"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " em"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "ulsion"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " of"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " eggs"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " and"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " Pec"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "or"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "ino"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " Romano"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": ","
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " finished"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " with"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " plenty"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " of"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " black"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " pepper"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "."
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " Toss"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " with"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " reserved"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " st"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "archy"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " pasta"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " water"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " to"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " achieve"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " a"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " silky"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " sauce"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " and"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " serve"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " immediately"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "."
+ },
+ {
+  "type": "TEXT_MESSAGE_END",
+  "messageId": "chatcmpl-Id_1"
+ },
+ {
+  "type": "RUN_FINISHED",
+  "threadId": "thread_Id_1",
+  "runId": "run_Id_1",
+  "outcome": {
+   "type": "success"
+  },
+  "usage": [
+   {
+    "inputTokens": 658,
+    "outputTokens": 188,
+    "totalTokens": 846,
+    "reasoningTokens": 128,
+    "cachedInputTokens": 0
+   }
+  ]
+ }
+]

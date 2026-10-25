@@ -3,10 +3,11 @@ module github.com/ricardogayer/go-agui
 go 1.24.4
 
 require (
-	github.com/ag-ui-protocol/ag-ui/sdks/community/go v0.0.0-20260815061848-277a06d46329
 	github.com/cloudwego/eino v0.9.2
 	github.com/eino-contrib/jsonschema v1.0.3
 	github.com/evanphx/json-patch/v5 v5.9.11
+	github.com/google/uuid v1.6.0
+	google.golang.org/protobuf v1.34.1
 )
 
 require (
@@ -17,7 +18,6 @@ require (
 	github.com/bytedance/sonic/loader v0.5.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/goph/emperror v0.17.2 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/klauspost/cpuid/v2 v2.2.9 // indirect

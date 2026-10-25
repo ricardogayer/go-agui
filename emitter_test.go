@@ -26,30 +26,27 @@ func (w *failingWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-// TestIsTransportErrorRecognizesRealWriteFailure is the canary test for the
-// coupling to the SDK's strings.
+// TestIsTransportErrorRecognizesRealWriteFailure guards the classification
+// of write errors.
 //
-// isTransportError tells "the client went away" apart from "the event is
-// invalid" by matching the messages the SDK's pkg/encoding/sse produces. If an
-// SDK update changes those texts, the classification silently flips: an
-// invalid event would be read as a disconnect and the run would die without
-// RUN_ERROR, with the symptom "the conversation simply stopped".
+// The Emitter tells "the client went away" (stream.ErrStreamFailed, sticky,
+// cancels the run) apart from "the event is not conformant"
+// (*wire.ValidationError / *wire.ProtocolError, the event is dropped and the
+// stream goes on). If the classification flipped, an invalid event would be
+// read as a disconnect and the run would die without RUN_ERROR, with the
+// symptom "the conversation simply stopped". This test forces a REAL write
+// failure — it does not build the error by hand.
 //
-// This test forces a REAL write failure — it does not build the string by
-// hand — precisely so that the breakage shows up here, in CI, and not in
-// production.
+// PT: TestIsTransportErrorRecognizesRealWriteFailure protege a classificação
+// dos erros de escrita.
 //
-// PT: TestIsTransportErrorRecognizesRealWriteFailure é o teste-canário do
-// acoplamento a strings do SDK.
-//
-// isTransportError distingue "o cliente foi embora" de "o evento é inválido"
-// casando as mensagens que o pkg/encoding/sse do SDK produz. Se uma atualização
-// do SDK mudar esses textos, a classificação silenciosamente inverte: um evento
-// inválido passaria a ser lido como desconexão e o run morreria sem RUN_ERROR,
-// com sintoma de "a conversa simplesmente parou".
-//
-// Este teste força uma falha de escrita DE VERDADE — não constrói a string à
-// mão — justamente para que a quebra apareça aqui, em CI, e não em produção.
+// O Emitter distingue "o cliente foi embora" (stream.ErrStreamFailed,
+// pegajoso, cancela o run) de "o evento não está conforme"
+// (*wire.ValidationError / *wire.ProtocolError, o evento cai e o stream
+// segue). Se a classificação invertesse, um evento inválido seria lido como
+// desconexão e o run morreria sem RUN_ERROR, com sintoma de "a conversa
+// simplesmente parou". Este teste força uma falha de escrita DE VERDADE — não
+// constrói o erro à mão.
 func TestIsTransportErrorRecognizesRealWriteFailure(t *testing.T) {
 	writeErr := errors.New("broken pipe")
 	w := &failingWriter{remaining: 0, err: writeErr}
@@ -59,9 +56,7 @@ func TestIsTransportErrorRecognizesRealWriteFailure(t *testing.T) {
 
 	err := e.Err()
 	if err == nil {
-		t.Fatal("a failing write must be classified as a transport error;\n" +
-			"if this test broke after updating the AG-UI SDK, check the\n" +
-			"messages in pkg/encoding/sse/writer.go against isTransportError")
+		t.Fatal("a failing write must be classified as a transport error")
 	}
 	if !errors.Is(err, ErrClientGone) {
 		t.Fatalf("error = %v, want it to wrap ErrClientGone", err)
@@ -114,10 +109,13 @@ func TestInvalidEventIsDroppedButTheStreamContinues(t *testing.T) {
 			dropped++
 		}))
 
-	// A TOOL_CALL_START with an empty toolCallId is rejected by the SDK.
+	// TOOL_CALL_ARGS for a call that was never started breaks the AG-UI 1.0
+	// sequence rules and is refused before reaching the wire.
 	//
-	// PT: Um TOOL_CALL_START com toolCallId vazio é recusado pelo SDK.
-	e.ToolStart("", "some", "")
+	// PT: TOOL_CALL_ARGS de uma chamada nunca iniciada viola as regras de
+	// sequência do AG-UI 1.0 e é recusado antes de chegar ao fio.
+	e.RunStarted()
+	e.ToolArgs("never_started", "{}")
 	// ...and the stream must stay alive for the terminal event to arrive.
 	//
 	// PT: ...e o stream tem de continuar vivo para o evento terminal chegar.
@@ -138,6 +136,7 @@ func TestOnlyOneTerminalEventPerRun(t *testing.T) {
 	var buf bytes.Buffer
 	e := NewEmitter(&buf, WithEmitterIDs("t1", "r1"))
 
+	e.RunStarted()
 	e.RunFinished()
 	if !e.Terminated() {
 		t.Fatal("Terminated should be true after RUN_FINISHED")
@@ -157,7 +156,7 @@ func TestEmptyDeltasDoNotBecomeEvents(t *testing.T) {
 	var buf bytes.Buffer
 	e := NewEmitter(&buf, WithEmitterIDs("t1", "r1"))
 
-	e.TextContent("m1", "") // the SDK rejects an empty delta (PT: o SDK recusa delta vazio)
+	e.TextContent("m1", "") // an empty delta carries nothing (PT: delta vazio não carrega nada)
 	e.ToolArgs("c1", "")
 	e.StateDelta(nil)
 

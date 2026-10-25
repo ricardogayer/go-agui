@@ -16,7 +16,7 @@
 //	evs := aguitest.Run(t, ag, aguitest.Input("hi"))
 //	aguitest.RequireSequence(t, evs,
 //		agui.EventRunStarted, agui.EventStepStarted,
-//		agui.EventTextMessageStart, agui.EventTextMessageChunk,
+//		agui.EventTextMessageStart, agui.EventTextMessageContent,
 //		agui.EventTextMessageEnd, agui.EventStepFinished,
 //		agui.EventStateSnapshot, agui.EventMessagesSnapshot, agui.EventRunFinished)
 //

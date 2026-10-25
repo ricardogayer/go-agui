@@ -221,12 +221,10 @@ func TestResumeRunsThePausedToolBeforeCallingTheModel(t *testing.T) {
 	// PT: O run seguinte: o cliente reenvia o histórico com a chamada pendente e a
 	// decisão. Não há store no servidor — a chamada CHEGA na conversa.
 	in := aguitest.Input("buy it")
-	in.Messages = append(in.Messages, agui.Message{
-		ID:   "msg_2",
-		Role: agui.RoleAssistant,
+	in.Messages = append(in.Messages, &agui.AssistantMessage{
+		ID: "msg_2",
 		ToolCalls: []agui.ToolCall{{
 			ID:       "call_1",
-			Type:     "function",
 			Function: agui.FunctionCall{Name: "purchase", Arguments: `{"amount":100}`},
 		}},
 	})
@@ -260,12 +258,10 @@ func TestCancelledDecisionDoesNotRunTheToolAndTheModelContinues(t *testing.T) {
 	ag := newAgent(t, m, agui.WithTools(purchaseTool(t, &executed)))
 
 	in := aguitest.Input("buy it")
-	in.Messages = append(in.Messages, agui.Message{
-		ID:   "msg_2",
-		Role: agui.RoleAssistant,
+	in.Messages = append(in.Messages, &agui.AssistantMessage{
+		ID: "msg_2",
 		ToolCalls: []agui.ToolCall{{
 			ID:       "call_1",
-			Type:     "function",
 			Function: agui.FunctionCall{Name: "purchase", Arguments: `{"amount":100}`},
 		}},
 	})

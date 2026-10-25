@@ -1,0 +1,115 @@
+[
+ {
+  "type": "RUN_STARTED",
+  "threadId": "thread_Id_2",
+  "runId": "run_Id_2",
+  "protocolVersion": "1.0"
+ },
+ {
+  "type": "TOOL_CALL_START",
+  "toolCallId": "call_Id_1",
+  "toolCallName": "delete_file",
+  "parentMessageId": "guid_Id_1"
+ },
+ {
+  "type": "TOOL_CALL_ARGS",
+  "toolCallId": "call_Id_1",
+  "delta": "{\"filename\":\"report-draft.txt\"}"
+ },
+ {
+  "type": "TOOL_CALL_END",
+  "toolCallId": "call_Id_1"
+ },
+ {
+  "type": "TOOL_CALL_RESULT",
+  "messageId": "call_Id_1",
+  "toolCallId": "call_Id_1",
+  "content": "\"File 'report-draft.txt' deleted successfully.\""
+ },
+ {
+  "type": "TEXT_MESSAGE_START",
+  "messageId": "chatcmpl-Id_2",
+  "role": "assistant"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "Done"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " —"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " \""
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "report"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "-d"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "raft"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": ".txt"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "\""
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " has"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " been"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " deleted"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "."
+ },
+ {
+  "type": "TEXT_MESSAGE_END",
+  "messageId": "chatcmpl-Id_2"
+ },
+ {
+  "type": "RUN_FINISHED",
+  "threadId": "thread_Id_2",
+  "runId": "run_Id_2",
+  "outcome": {
+   "type": "success"
+  },
+  "usage": [
+   {
+    "inputTokens": 224,
+    "outputTokens": 16,
+    "totalTokens": 240,
+    "reasoningTokens": 0,
+    "cachedInputTokens": 0
+   }
+  ]
+ }
+]

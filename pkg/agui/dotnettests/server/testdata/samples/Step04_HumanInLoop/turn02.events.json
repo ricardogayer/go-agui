@@ -1,0 +1,135 @@
+[
+ {
+  "type": "RUN_STARTED",
+  "threadId": "thread_Id_2",
+  "runId": "run_Id_2",
+  "protocolVersion": "1.0"
+ },
+ {
+  "type": "TOOL_CALL_START",
+  "toolCallId": "call_Id_1",
+  "toolCallName": "ApproveExpenseReport",
+  "parentMessageId": "guid_Id_1"
+ },
+ {
+  "type": "TOOL_CALL_ARGS",
+  "toolCallId": "call_Id_1",
+  "delta": "{\"expenseReportId\":\"EXP-2024-001\"}"
+ },
+ {
+  "type": "TOOL_CALL_END",
+  "toolCallId": "call_Id_1"
+ },
+ {
+  "type": "TOOL_CALL_RESULT",
+  "messageId": "call_Id_1",
+  "toolCallId": "call_Id_1",
+  "content": "\"Expense report EXP-2024-001 has been approved and processed.\""
+ },
+ {
+  "type": "TEXT_MESSAGE_START",
+  "messageId": "chatcmpl-Id_2",
+  "role": "assistant"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "Done"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " —"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " expense"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " report"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " EXP"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "-"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "202"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "4"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "-"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "001"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " has"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " been"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " approved"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " and"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " processed"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "."
+ },
+ {
+  "type": "TEXT_MESSAGE_END",
+  "messageId": "chatcmpl-Id_2"
+ },
+ {
+  "type": "RUN_FINISHED",
+  "threadId": "thread_Id_2",
+  "runId": "run_Id_2",
+  "outcome": {
+   "type": "success"
+  },
+  "usage": [
+   {
+    "inputTokens": 199,
+    "outputTokens": 20,
+    "totalTokens": 219,
+    "reasoningTokens": 0,
+    "cachedInputTokens": 0
+   }
+  ]
+ }
+]

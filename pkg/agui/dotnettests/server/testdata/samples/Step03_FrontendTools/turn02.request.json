@@ -1,0 +1,42 @@
+{
+ "threadId": "thread_Id_1",
+ "runId": "run_Id_2",
+ "protocolVersion": "1.0",
+ "messages": [
+  {
+   "id": "",
+   "role": "user",
+   "content": "What are some fun things to do near me?"
+  },
+  {
+   "role": "assistant",
+   "toolCalls": [
+    {
+     "id": "call_Id_1",
+     "type": "function",
+     "function": {
+      "name": "GetUserLocation",
+      "arguments": "{}"
+     }
+    }
+   ],
+   "id": "call_Id_1"
+  },
+  {
+   "role": "tool",
+   "content": "\"Amsterdam, Netherlands (52.37°N, 4.90°E)\"",
+   "toolCallId": "call_Id_1",
+   "id": "call_Id_1"
+  }
+ ],
+ "tools": [
+  {
+   "name": "GetUserLocation",
+   "description": "Get the user's current location from GPS.",
+   "parameters": {
+    "type": "object",
+    "properties": {}
+   }
+  }
+ ]
+}

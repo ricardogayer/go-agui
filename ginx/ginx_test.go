@@ -32,7 +32,7 @@ func TestSSEStreamingPassesThroughGin(t *testing.T) {
 
 	aguitest.RequireSequence(t, evs,
 		agui.EventRunStarted,
-		agui.EventTextMessageStart, agui.EventTextMessageChunk, agui.EventTextMessageEnd,
+		agui.EventTextMessageStart, agui.EventTextMessageContent, agui.EventTextMessageEnd,
 		agui.EventRunFinished)
 	aguitest.RequireBalanced(t, evs)
 

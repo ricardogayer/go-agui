@@ -9,8 +9,11 @@ import (
 	"runtime/debug"
 	"time"
 
-	"github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
-	"github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/encoding/sse"
+	"github.com/google/uuid"
+
+	wire "github.com/ricardogayer/go-agui/pkg/agui"
+	"github.com/ricardogayer/go-agui/pkg/server"
+	"github.com/ricardogayer/go-agui/pkg/stream"
 )
 
 // Runner is everything a transport needs to execute a run.
@@ -55,6 +58,8 @@ type handlerOptions struct {
 	shutdownCtx  context.Context
 	onDropped    DroppedFunc
 	maxBodyBytes int64
+	noProtobuf   bool
+	rejectMajor  bool
 }
 
 // HandlerOption configures the [Handler].
@@ -117,22 +122,60 @@ func WithMaxBodyBytes(n int64) HandlerOption {
 	}
 }
 
-// Handler returns the http.Handler that speaks AG-UI over SSE: it receives a
-// RunAgentInput in JSON and responds with `text/event-stream`.
+// WithoutProtobuf makes the handler always answer with SSE, ignoring a client
+// that asks for the HTTP + Protobuf binding. By default the binding is
+// negotiated through the Accept header, as AG-UI 1.0 prescribes: Protobuf when
+// the client admits application/vnd.ag-ui.event+proto (explicitly or through
+// a wildcard), SSE otherwise.
 //
-// It takes care of decoding, headers, the run lifecycle (ids, cancellation,
-// panic) and the terminal event. Everything application-specific lives behind
-// the [Runner] interface.
+// PT: WithoutProtobuf faz o handler responder sempre com SSE, ignorando um
+// cliente que peça o binding HTTP + Protobuf. Por padrão o binding é negociado
+// pelo cabeçalho Accept, como o AG-UI 1.0 prescreve: Protobuf quando o cliente
+// admite application/vnd.ag-ui.event+proto (explicitamente ou por curinga),
+// SSE caso contrário.
+func WithoutProtobuf() HandlerOption {
+	return func(o *handlerOptions) { o.noProtobuf = true }
+}
+
+// WithRejectOtherMajorVersions makes the handler answer HTTP 400 to a client
+// that declares a protocolVersion of another major version. By default such
+// a client is served, with a warning in the log.
+//
+// PT: WithRejectOtherMajorVersions faz o handler responder HTTP 400 a um
+// cliente que declare um protocolVersion de outra versão major. Por padrão
+// esse cliente é atendido, com um aviso no log.
+func WithRejectOtherMajorVersions() HandlerOption {
+	return func(o *handlerOptions) { o.rejectMajor = true }
+}
+
+// Handler returns the http.Handler that speaks AG-UI 1.0: it receives a
+// RunAgentInput in JSON and responds with an event stream — SSE
+// (`text/event-stream`) or, when the client negotiates it through Accept, the
+// HTTP + Protobuf binding.
+//
+// It takes care of the input (read under the AG-UI processing model: unknown
+// fields dropped with a warning, a malformed known value refused with HTTP
+// 400 before any stream; retired forms converted; protocol version
+// negotiated), headers, the run lifecycle (ids, cancellation, panic) and the
+// terminal event. Every event is validated against the official 1.0 schema
+// and sequence rules before it is written. Everything application-specific
+// lives behind the [Runner] interface.
 //
 // To mount it on a *gin.Engine, use the ginx package — or, without it,
 // `r.POST("/", gin.WrapH(agui.Handler(ag)))`.
 //
-// PT: Handler devolve o http.Handler que fala AG-UI sobre SSE: recebe um
-// RunAgentInput em JSON e responde `text/event-stream`.
+// PT: Handler devolve o http.Handler que fala AG-UI 1.0: recebe um
+// RunAgentInput em JSON e responde com um stream de eventos — SSE
+// (`text/event-stream`) ou, quando o cliente o negocia pelo Accept, o binding
+// HTTP + Protobuf.
 //
-// Cuida da decodificação, dos cabeçalhos, do ciclo de vida do run
-// (ids, cancelamento, pânico) e do evento terminal. Tudo o que é da aplicação
-// fica atrás da interface [Runner].
+// Cuida do input (lido sob o modelo de processamento do AG-UI: campos
+// desconhecidos descartados com aviso, valor conhecido malformado recusado
+// com HTTP 400 antes de qualquer stream; formas aposentadas convertidas;
+// versão do protocolo negociada), dos cabeçalhos, do ciclo de vida do run
+// (ids, cancelamento, pânico) e do evento terminal. Todo evento é validado
+// contra o schema oficial 1.0 e as regras de sequência antes de ser escrito.
+// Tudo o que é da aplicação fica atrás da interface [Runner].
 //
 // Para montar num *gin.Engine, use o pacote ginx — ou, sem ele,
 // `r.POST("/", gin.WrapH(agui.Handler(ag)))`.
@@ -141,82 +184,55 @@ func Handler(r Runner, opts ...HandlerOption) http.Handler {
 	for _, o := range opts {
 		o(cfg)
 	}
-	sw := sse.NewSSEWriter().WithLogger(cfg.logger)
+	maxBody := cfg.maxBodyBytes
+	if maxBody <= 0 {
+		maxBody = 1 << 62 // no limit (PT: sem limite)
+	}
+	reader := server.NewAgentHandler(nil, server.Options{
+		MaxBodyBytes:             maxBody,
+		RejectOtherMajorVersions: cfg.rejectMajor,
+	})
 
 	return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		body := req.Body
-		if cfg.maxBodyBytes > 0 {
-			body = http.MaxBytesReader(w, req.Body, cfg.maxBodyBytes)
+		in, warnings, err := reader.ReadInput(req)
+		for _, warn := range warnings {
+			cfg.logger.Warn("run input", "warning", warn.String())
 		}
-		var in RunAgentInput
-		if err := json.NewDecoder(body).Decode(&in); err != nil {
-			status := http.StatusBadRequest
-			msg := "invalid request body"
-			var tooLarge *http.MaxBytesError
-			if errors.As(err, &tooLarge) {
-				status = http.StatusRequestEntityTooLarge
-				msg = "request body too large"
-			}
-			cfg.logger.Warn("invalid request body", "error", err)
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(status)
-			_ = json.NewEncoder(w).Encode(map[string]string{"error": msg})
+		if err != nil {
+			writeRequestError(w, err, cfg.logger)
 			return
 		}
 
-		// The Python adapter accepts empty threadId/runId; here we generate
-		// valid ids, because the Go SDK rejects events with those fields empty.
-		//
-		// PT: O adaptador Python aceita threadId/runId vazios; aqui geramos ids
-		// válidos, porque o SDK Go recusa eventos com esses campos vazios.
+		// threadId and runId are required by the schema but may arrive empty.
+		// PT: threadId e runId são exigidos pelo schema mas podem chegar vazios.
 		threadID := in.ThreadID
 		if threadID == "" {
-			threadID = events.GenerateThreadID()
+			threadID = uuid.NewString()
 		}
 		runID := in.RunID
 		if runID == "" {
-			runID = events.GenerateRunID()
+			runID = uuid.NewString()
 		}
 		logger := cfg.logger.With("thread", threadID, "run", runID)
 
+		// The server's WriteTimeout would cut a long stream midway: clear it.
+		// PT: O WriteTimeout do servidor cortaria um stream longo no meio: zere-o.
 		rc := http.NewResponseController(w)
-		// An SSE run is long by nature. Without clearing the write deadline, an
-		// http.Server with WriteTimeout — the recommended configuration in any
-		// production guide — would cut the stream in the middle of the response.
-		// ErrNotSupported happens when the wrapped writer does not expose
-		// Unwrap(); in that case there is no deadline to clear and moving on is
-		// the right thing.
-		//
-		// PT: Um run SSE é longo por natureza. Sem zerar o prazo de escrita, um
-		// http.Server com WriteTimeout — a configuração recomendada em
-		// qualquer guia de produção — cortaria o stream no meio da resposta.
-		// ErrNotSupported acontece quando o writer embrulhado não expõe
-		// Unwrap(); nesse caso não há prazo a zerar e seguir é o certo.
 		if err := rc.SetWriteDeadline(time.Time{}); err != nil &&
 			!errors.Is(err, http.ErrNotSupported) {
 			logger.Warn("could not clear the stream write deadline", "error", err)
 		}
 
-		h := w.Header()
-		h.Set("Content-Type", "text/event-stream")
-		h.Set("Cache-Control", "no-cache")
-		h.Set("Connection", "keep-alive")
-		// Mirrors NGINX's `proxy_buffering off`: without this a proxy in front
-		// holds the frames and streaming turns into batching.
-		//
-		// PT: Espelha o `proxy_buffering off` do NGINX: sem isto um proxy à frente
-		// segura os quadros e o streaming vira lote.
-		h.Set("X-Accel-Buffering", "no")
+		var out *stream.SSE
+		if cfg.noProtobuf {
+			out = stream.New(w, stream.ForThread(threadID))
+		} else {
+			out = stream.Negotiate(w, req, stream.ForThread(threadID))
+		}
+		w.Header().Set("Connection", "keep-alive")
 		w.WriteHeader(http.StatusOK)
 		_ = rc.Flush() // commits the headers before the first event (PT: compromete os cabeçalhos antes do primeiro evento)
 
-		// The run context dies when the client disconnects (req.Context()) and
-		// also when the process shuts down. The Emitter additionally cancels it
-		// on the first write that fails.
-		//
-		// PT: O contexto do run morre quando o cliente desconecta
-		// (req.Context()) e também quando o processo desliga. O Emitter o
-		// cancela adicionalmente na primeira escrita que falha.
 		reqCtx, cancelReq := mergeCancel(req.Context(), cfg.shutdownCtx)
 		defer cancelReq()
 		runCtx, cancel := context.WithCancel(reqCtx)
@@ -229,22 +245,15 @@ func Handler(r Runner, opts ...HandlerOption) http.Handler {
 					"type", ev.Type(), "error", err)
 			}
 		}
-
 		emit := NewEmitter(w,
 			WithEmitterContext(runCtx),
 			WithEmitterIDs(threadID, runID),
+			WithEmitterParentRunID(wire.Deref(in.ParentRunID)),
 			WithEmitterCancel(cancel),
-			WithEmitterSSEWriter(sw),
+			WithEmitterStream(out),
 			WithEmitterDropped(onDrop),
 		)
 
-		// A panic inside the agent loop (provider bug, nil deref) would escape
-		// through the handler goroutine and truncate the stream without a
-		// terminal event. It becomes RUN_ERROR.
-		//
-		// PT: Um pânico dentro do laço do agente (bug do provedor, nil deref) sairia
-		// pela goroutine do handler e truncaria o stream sem evento terminal.
-		// Vira RUN_ERROR.
 		defer func() {
 			if rec := recover(); rec != nil {
 				logger.Error("handler panicked",
@@ -254,15 +263,8 @@ func Handler(r Runner, opts ...HandlerOption) http.Handler {
 		}()
 
 		emit.RunStarted()
-		err := r.Run(runCtx, emit, &in)
+		err = r.Run(runCtx, emit, in)
 
-		// Protocol invariant: every run ends with exactly one terminal event. A
-		// Runner that returns an error without having emitted its own would
-		// leave the client hanging on a stream that simply stops.
-		//
-		// PT: Invariante do protocolo: todo run termina com exatamente um evento
-		// terminal. Um Runner que devolve erro sem ter emitido o seu deixaria o
-		// cliente pendurado num stream que simplesmente para.
 		if !emit.Terminated() {
 			if err != nil {
 				logger.Error("runner failed without emitting a terminal event", "error", err)
@@ -274,11 +276,30 @@ func Handler(r Runner, opts ...HandlerOption) http.Handler {
 		} else if err != nil {
 			logger.Warn("run finished with error", "error", err)
 		}
-
 		if e := emit.Err(); e != nil {
 			logger.Info("stream closed before the end", "error", e)
 		}
 	})
+}
+
+// writeRequestError answers a request refused before the stream: 400 for a
+// malformed input, 405/413/415 for the transport-level refusals.
+//
+// PT: writeRequestError responde uma requisição recusada antes do stream: 400
+// para um input malformado, 405/413/415 para as recusas de transporte.
+func writeRequestError(w http.ResponseWriter, err error, logger *slog.Logger) {
+	status, resp := http.StatusBadRequest, server.ErrorResponse{Error: "invalid request body"}
+	var re *server.RequestError
+	if errors.As(err, &re) {
+		status, resp.Error = re.Status, re.Message
+		if re.Err != nil {
+			resp.Details = re.Err.Error()
+		}
+	}
+	logger.Warn("request refused before the stream", "status", status, "error", err)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // Health returns the /health handler, with the same body as the Python adapter.

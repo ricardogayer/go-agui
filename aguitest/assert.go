@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	agui "github.com/ricardogayer/go-agui"
+	wire "github.com/ricardogayer/go-agui/pkg/agui"
 )
 
 // Event is an AG-UI event decoded from the SSE stream, with the raw fields
@@ -47,8 +48,8 @@ func Input(text string) *agui.RunAgentInput {
 	return &agui.RunAgentInput{
 		ThreadID: "thread_test",
 		RunID:    "run_test",
-		Messages: []agui.Message{
-			{ID: "msg_1", Role: agui.RoleUser, Content: text},
+		Messages: agui.Messages{
+			&agui.UserMessage{ID: "msg_1", Content: agui.TextContent(text)},
 		},
 	}
 }
@@ -59,21 +60,32 @@ func Input(text string) *agui.RunAgentInput {
 // with an httptest.ResponseRecorder. It is the shortest path between an agent
 // and the event sequence it produces.
 //
+// An event the Emitter refuses as non-conformant to AG-UI 1.0 fails the test
+// (pass agui.WithOnDropped to override), and the stream is checked with
+// [RequireConformant].
+//
 // PT: Run executa um Runner em memória e devolve os eventos emitidos.
 //
 // Não sobe servidor: monta o [agui.Handler] e o exercita com um
 // httptest.ResponseRecorder. É o caminho mais curto entre um agente e a
 // sequência de eventos que ele produz.
+//
+// Um evento recusado pelo Emitter por não conformidade com o AG-UI 1.0
+// reprova o teste (passe agui.WithOnDropped para mudar isso), e o stream é
+// verificado com [RequireConformant].
 func Run(t *testing.T, r agui.Runner, in *agui.RunAgentInput, opts ...agui.HandlerOption) []Event {
 	t.Helper()
-	return Collect(t, agui.Handler(r, opts...), in)
+	failOnDrop := agui.WithOnDropped(func(_ context.Context, ev agui.Event, err error) {
+		t.Errorf("aguitest: %s dropped: %v", ev.Type(), err)
+	})
+	return Collect(t, agui.Handler(r, append([]agui.HandlerOption{failOnDrop}, opts...)...), in)
 }
 
 // Collect exercises an http.Handler with the given input and returns the SSE
-// events.
+// events, after checking them with [RequireConformant].
 //
 // PT: Collect exercita um http.Handler com o input dado e devolve os eventos
-// SSE.
+// SSE, depois de verificá-los com [RequireConformant].
 func Collect(t *testing.T, h http.Handler, in *agui.RunAgentInput) []Event {
 	t.Helper()
 
@@ -84,6 +96,7 @@ func Collect(t *testing.T, h http.Handler, in *agui.RunAgentInput) []Event {
 	req := httptest.NewRequestWithContext(context.Background(),
 		http.MethodPost, "/", bytes.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
 	rec := httptest.NewRecorder()
 
 	h.ServeHTTP(rec, req)
@@ -91,7 +104,42 @@ func Collect(t *testing.T, h http.Handler, in *agui.RunAgentInput) []Event {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("aguitest: status %d, body %s", rec.Code, rec.Body.String())
 	}
-	return ParseSSE(t, rec.Body.Bytes())
+	evs := ParseSSE(t, rec.Body.Bytes())
+	RequireConformant(t, evs)
+	return evs
+}
+
+// RequireConformant checks a stream the way a conformant AG-UI 1.0 consumer
+// would: every event against the official JSON Schema, and the whole sequence
+// against the protocol rules (run lifecycle, open/content/close discipline,
+// tool calls, steps, ...). The stream must end with its run closed.
+//
+// PT: RequireConformant verifica um stream como um consumidor AG-UI 1.0
+// conforme faria: cada evento contra o JSON Schema oficial, e a sequência
+// inteira contra as regras do protocolo (ciclo de vida do run, disciplina
+// abrir/conteúdo/fechar, tool calls, steps, ...). O stream deve terminar com
+// o run fechado.
+func RequireConformant(t *testing.T, evs []Event) {
+	t.Helper()
+	var checker wire.StreamChecker
+	for i, e := range evs {
+		raw, err := json.Marshal(e)
+		if err != nil {
+			t.Fatalf("aguitest: event %d: %v", i, err)
+		}
+		ev, err := wire.ParseEvent(raw)
+		if err != nil {
+			t.Fatalf("aguitest: event %d (%s) does not conform to the AG-UI %s schema: %v\n  %s",
+				i, e.Type(), wire.ProtocolVersion, err, raw)
+		}
+		if _, err := checker.Check(ev); err != nil {
+			t.Fatalf("aguitest: event %d (%s) breaks the AG-UI %s sequence rules: %v\n  got: %v",
+				i, e.Type(), wire.ProtocolVersion, err, Types(evs))
+		}
+	}
+	if len(evs) > 0 && !checker.Verifier.RunClosed() {
+		t.Fatalf("aguitest: the stream ended with its run still open\n  got: %v", Types(evs))
+	}
 }
 
 // ParseSSE decodes an SSE stream into events.
@@ -211,7 +259,7 @@ func RequireBalanced(t *testing.T, evs []Event) {
 				t.Fatalf("aguitest: event %d opens a text block with %q still open", i, openText)
 			}
 			openText = e.String("messageId")
-		case agui.EventTextMessageChunk:
+		case agui.EventTextMessageContent:
 			if openText == "" {
 				t.Fatalf("aguitest: event %d is text content outside an open block", i)
 			}
@@ -292,7 +340,7 @@ func All(evs []Event, typ agui.EventType) []Event {
 // que o usuário acabaria vendo.
 func ConcatenatedText(evs []Event) string {
 	var b strings.Builder
-	for _, e := range All(evs, agui.EventTextMessageChunk) {
+	for _, e := range All(evs, agui.EventTextMessageContent) {
 		b.WriteString(e.String("delta"))
 	}
 	return b.String()

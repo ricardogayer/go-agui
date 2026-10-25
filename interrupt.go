@@ -3,15 +3,15 @@ package agui
 import (
 	"errors"
 
-	"github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
+	wire "github.com/ricardogayer/go-agui/pkg/agui"
 )
 
-// ResumeStatus constants, re-exported from the SDK.
+// ResumeStatus constants, re-exported from the AG-UI 1.0 data model.
 //
-// PT: Constantes de ResumeStatus, reexportadas do SDK.
+// PT: Constantes de ResumeStatus, reexportadas do modelo de dados do AG-UI 1.0.
 const (
-	ResumeStatusResolved  = types.ResumeStatusResolved
-	ResumeStatusCancelled = types.ResumeStatusCancelled
+	ResumeStatusResolved  = wire.ResumeStatusResolved
+	ResumeStatusCancelled = wire.ResumeStatusCancelled
 )
 
 // InterruptRequest describes the pause a tool asks for: what needs to be
@@ -21,10 +21,13 @@ const (
 // decidido e como o cliente deve apresentar a decisão.
 type InterruptRequest struct {
 	// Reason is the machine-readable code of the pause ("needs_approval").
-	// The client usually uses it to choose which component to render.
+	// The client usually uses it to choose which component to render. Empty
+	// becomes "tool_approval", the reason AG-UI 1.0 uses for tool approvals.
 	//
 	// PT: Reason é o código da pausa, legível por máquina ("needs_approval").
-	// O cliente costuma usá-lo para escolher qual componente renderizar.
+	// O cliente costuma usá-lo para escolher qual componente renderizar. Vazio
+	// vira "tool_approval", o motivo que o AG-UI 1.0 usa para aprovações de
+	// tool.
 	Reason string
 
 	// Message is the text presented to the human.
@@ -140,12 +143,18 @@ func asInterrupt(err error) (*InterruptError, bool) {
 // tool call: é o que o cliente já tem em mãos para correlacionar a resposta, e
 // o que [RunContext.ResumeFor] espera receber de volta.
 func (e *InterruptError) toAGUI(toolCallID string) InterruptPoint {
-	return types.Interrupt{
+	it := wire.Interrupt{
 		ID:             toolCallID,
-		ToolCallID:     toolCallID,
+		ToolCallID:     &toolCallID,
 		Reason:         e.Request.Reason,
-		Message:        e.Request.Message,
 		ResponseSchema: e.Request.ResponseSchema,
 		Metadata:       e.Request.Metadata,
 	}
+	if it.Reason == "" {
+		it.Reason = "tool_approval" // a blank reason tells the client nothing (PT: um motivo vazio não diz nada ao cliente)
+	}
+	if e.Request.Message != "" {
+		it.Message = &e.Request.Message
+	}
+	return it
 }

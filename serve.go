@@ -9,6 +9,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/ricardogayer/go-agui/pkg/server"
 )
 
 // Mux mounts the routes of the AG-UI contract:
@@ -224,4 +226,19 @@ func Addr(defaultPort int) string {
 		}
 	}
 	return host + ":" + strconv.Itoa(port)
+}
+
+// Capabilities returns a GET handler serving the agent's AG-UI 1.0 capability
+// declaration as JSON. The declaration is validated against the official
+// schema once, at construction; an invalid one answers 500. AG-UI 1.0 defines
+// the declaration's shape but not how a client retrieves it, so the route is
+// the application's choice (e.g. `GET /capabilities`).
+//
+// PT: Capabilities devolve um handler GET que serve a declaração de
+// capacidades AG-UI 1.0 do agente em JSON. A declaração é validada contra o
+// schema oficial uma vez, na construção; uma inválida responde 500. O AG-UI
+// 1.0 define o formato da declaração, mas não como o cliente a obtém, então a
+// rota é escolha da aplicação (ex.: `GET /capabilities`).
+func Capabilities(caps AgentCapabilities) http.Handler {
+	return server.CapabilitiesHandler(caps)
 }
