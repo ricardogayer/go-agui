@@ -10,7 +10,7 @@ formato segue o Keep a Changelog e os módulos usam Semantic Versioning. Cada
 release marca os três módulos publicados juntos: `vX.Y.Z` (núcleo),
 `model/vX.Y.Z` e `ginx/vX.Y.Z`.
 
-## [0.3.0] - 2026-10-25
+## [0.4.0] - 2026-10-25
 
 Full AG-UI 1.0 conformance. The protocol layer of
 [ag-ui-go](https://github.com/ricardogayer/ag-ui-go) — data model, schema
@@ -156,7 +156,7 @@ PT:
   interrupts e retomada, `model` (OpenAI e Ollama), `ginx` (adaptador Gin),
   `aguitest` (FakeModel e asserções), `a2ui` (operações A2UI v0.9), exemplos.
 
-[0.3.0]: https://github.com/ricardogayer/go-agui/compare/v0.2.1...v0.3.0
+[0.4.0]: https://github.com/ricardogayer/go-agui/compare/v0.2.1...v0.4.0
 [0.2.1]: https://github.com/ricardogayer/go-agui/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/ricardogayer/go-agui/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/ricardogayer/go-agui/releases/tag/v0.1.0

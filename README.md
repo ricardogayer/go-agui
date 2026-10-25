@@ -160,9 +160,9 @@ commit is in `UPSTREAM_COMMIT`).
 ## Installation
 
 ```bash
-go get github.com/ricardogayer/go-agui@v0.3.0
-go get github.com/ricardogayer/go-agui/model@v0.3.0   # model providers (optional)
-go get github.com/ricardogayer/go-agui/ginx@v0.3.0    # Gin adapter (optional)
+go get github.com/ricardogayer/go-agui@v0.4.0
+go get github.com/ricardogayer/go-agui/model@v0.4.0   # model providers (optional)
+go get github.com/ricardogayer/go-agui/ginx@v0.4.0    # Gin adapter (optional)
 ```
 
 Three published modules, on purpose (a fourth, `examples`, exists only in the
@@ -555,9 +555,9 @@ Gin doesn't end up in the `go.mod` of whoever uses `chi`, `echo` or plain
 mkdir my-agent && cd my-agent
 go mod init github.com/you/my-agent
 
-go get github.com/ricardogayer/go-agui@v0.3.0
-go get github.com/ricardogayer/go-agui/ginx@v0.3.0
-go get github.com/ricardogayer/go-agui/model@v0.3.0
+go get github.com/ricardogayer/go-agui@v0.4.0
+go get github.com/ricardogayer/go-agui/ginx@v0.4.0
+go get github.com/ricardogayer/go-agui/model@v0.4.0
 ```
 
 ### 2. The `main.go`

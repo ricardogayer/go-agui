@@ -4,7 +4,7 @@
 
 Fatos essenciais:
 
-- Versão atual: v0.3.0 (tags `v0.3.0`, `model/v0.3.0`, `ginx/v0.3.0`).
+- Versão atual: v0.4.0 (tags `v0.4.0`, `model/v0.4.0`, `ginx/v0.4.0`).
 - Módulos publicados: núcleo `github.com/ricardogayer/go-agui` (agente, handler, emitter, estado, tools, e a camada de protocolo AG-UI 1.0 em `pkg/`: `pkg/agui` modelo de dados/validação/verificador, `pkg/sse`, `pkg/protobuf`, `pkg/stream` produtor, `pkg/server`, `pkg/client` consumidor); `.../model` (OpenAI e Ollama via eino-ext); `.../ginx` (adaptador Gin). Pacotes dentro do módulo núcleo (não são módulos separados): `.../aguitest` (FakeModel e asserções) e `.../a2ui` (operações A2UI v0.9).
 - Requisitos: Go 1.24.4+ (núcleo e model); Go 1.25+ (ginx e exemplos).
 - O chat model é um `model.ToolCallingChatModel` do Eino; uma tool é um `tool.BaseTool` do Eino — qualquer tool do ecossistema eino-ext (MCP etc.) entra sem adaptador.
@@ -290,9 +290,9 @@ aguitest.RequireContains(t, evs, agui.EventToolCallResult, agui.EventRunFinished
 ## Instalação e exemplos
 
 ```bash
-go get github.com/ricardogayer/go-agui@v0.3.0
-go get github.com/ricardogayer/go-agui/model@v0.3.0  # opcional
-go get github.com/ricardogayer/go-agui/ginx@v0.3.0   # opcional
+go get github.com/ricardogayer/go-agui@v0.4.0
+go get github.com/ricardogayer/go-agui/model@v0.4.0  # opcional
+go get github.com/ricardogayer/go-agui/ginx@v0.4.0   # opcional
 ```
 
 Smoke test sem frontend:
