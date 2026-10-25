@@ -3,9 +3,9 @@ module github.com/ricardogayer/go-agui/examples
 go 1.25.0
 
 require (
-	github.com/ricardogayer/go-agui v0.2.1
-	github.com/ricardogayer/go-agui/ginx v0.2.1
-	github.com/ricardogayer/go-agui/model v0.2.1
+	github.com/ricardogayer/go-agui v0.3.0
+	github.com/ricardogayer/go-agui/ginx v0.3.0
+	github.com/ricardogayer/go-agui/model v0.3.0
 )
 
 require (

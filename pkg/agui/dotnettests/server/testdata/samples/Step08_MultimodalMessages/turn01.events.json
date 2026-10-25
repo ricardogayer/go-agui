@@ -1,0 +1,224 @@
+[
+ {
+  "type": "RUN_STARTED",
+  "threadId": "thread_Id_1",
+  "runId": "run_Id_1",
+  "protocolVersion": "1.0"
+ },
+ {
+  "type": "TEXT_MESSAGE_START",
+  "messageId": "chatcmpl-Id_1",
+  "role": "assistant"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "This"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " image"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " depicts"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " a"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " black"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " geometric"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " shape"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " that"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " resembles"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " a"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " simplified"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " outline"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " of"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " a"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " gemstone"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " or"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " diamond"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "."
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " It"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " consists"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " of"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " angular"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " lines"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " and"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " facets"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " that"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " inter"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "connect"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " to"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " create"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " a"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " three"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "-dimensional"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": ","
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " fac"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "eted"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " appearance"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "."
+ },
+ {
+  "type": "TEXT_MESSAGE_END",
+  "messageId": "chatcmpl-Id_1"
+ },
+ {
+  "type": "RUN_FINISHED",
+  "threadId": "thread_Id_1",
+  "runId": "run_Id_1",
+  "outcome": {
+   "type": "success"
+  },
+  "usage": [
+   {
+    "inputTokens": 220,
+    "outputTokens": 39,
+    "totalTokens": 259,
+    "reasoningTokens": 0,
+    "cachedInputTokens": 0
+   }
+  ]
+ }
+]

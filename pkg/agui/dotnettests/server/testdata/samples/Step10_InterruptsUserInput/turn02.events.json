@@ -1,0 +1,39 @@
+[
+ {
+  "type": "RUN_STARTED",
+  "threadId": "thread_Id_2",
+  "runId": "run_Id_2",
+  "protocolVersion": "1.0"
+ },
+ {
+  "type": "TEXT_MESSAGE_START",
+  "messageId": "chatcmpl-Id_2",
+  "role": "assistant"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "Your account has been created with the username johndoe42."
+ },
+ {
+  "type": "TEXT_MESSAGE_END",
+  "messageId": "chatcmpl-Id_2"
+ },
+ {
+  "type": "RUN_FINISHED",
+  "threadId": "thread_Id_2",
+  "runId": "run_Id_2",
+  "outcome": {
+   "type": "success"
+  },
+  "usage": [
+   {
+    "inputTokens": 247,
+    "outputTokens": 215,
+    "totalTokens": 462,
+    "reasoningTokens": 192,
+    "cachedInputTokens": 0
+   }
+  ]
+ }
+]

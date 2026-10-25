@@ -9,10 +9,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/components/tool"
 	"github.com/cloudwego/eino/schema"
+	"github.com/google/uuid"
 )
 
 // Agent is an AG-UI agent: the model↔tools loop, the event streaming and the
@@ -147,6 +147,7 @@ func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error
 	}
 
 	iterations := 0
+	var usage *TokenUsage
 	finish := func(outcome string, err error) error {
 		if h := a.opts.hooks.OnRunEnd; h != nil {
 			h(ctx, RunInfo{
@@ -216,20 +217,37 @@ func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error
 	// PT: 4. Retomada: se o cliente respondeu a um interrupt, as tools paused
 	//    no run anterior rodam ANTES do modelo — o histórico que ele reenviou
 	//    tem a tool call sem resposta, e é essa lacuna que fechamos aqui.
-	if paused := pendingResumeCalls(conv, in.Resume); len(paused) > 0 {
-		emit.StepStarted(a.opts.stepTools)
-		its := a.settleToolCalls(ctx, rc, emit, conv, paused, clientNames, logger)
-		emit.StepFinished(a.opts.stepTools)
+	paused, uncovered := a.pendingResumeCalls(conv, in.Resume, logger)
+	if len(paused) > 0 || len(uncovered) > 0 {
+		var its []InterruptPoint
+		if len(paused) > 0 {
+			emit.StepStarted(a.opts.stepTools)
+			its = a.settleToolCalls(ctx, rc, emit, conv, paused, clientNames, logger)
+			emit.StepFinished(a.opts.stepTools)
+		}
+		// AG-UI 1.0: a call paused in the previous run that the resume does
+		// not cover stays open — omission is not abandonment, and the action
+		// must not run on the strength of an absent entry. The run ends with
+		// the interrupt outcome again instead of continuing past it.
+		//
+		// PT: AG-UI 1.0: uma chamada pausada no run anterior que o resume não
+		// cobre continua aberta — omissão não é abandono, e a ação não pode
+		// rodar com base numa entrada ausente. O run termina de novo com o
+		// outcome de interrupt em vez de passar por cima dela.
+		for _, tc := range uncovered {
+			its = append(its, stillOpenInterrupt(tc))
+		}
 		if len(its) > 0 {
-			// Interrupted again (another tool from the same turn, or the same
-			// one asking for one more piece of data).
+			// Interrupted again (another tool from the same turn, the same
+			// one asking for one more piece of data, or an uncovered call).
 			//
-			// PT: Interrompeu de novo (outra tool do mesmo turno, ou a mesma
-			// pedindo mais um dado).
+			// PT: Interrompeu de novo (outra tool do mesmo turno, a mesma
+			// pedindo mais um dado, ou uma chamada não coberta).
 			return finish("interrupt", a.finishInterrupt(emit, conv, state, its))
 		}
 	}
 
+	callIDs := usedToolCallIDs(conv)
 	for iterations = 1; iterations <= a.opts.maxIterations; iterations++ {
 		// errors.Join covers the two ways the client can vanish: the cancelled
 		// context (disconnection detected by the HTTP server) and the failed
@@ -248,7 +266,7 @@ func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error
 		if a.opts.preprocessor != nil {
 			msgs = a.opts.preprocessor(ctx, msgs)
 		}
-		turn, err := streamTurn(ctx, emit, cm, msgs)
+		turn, err := streamTurn(ctx, emit, cm, msgs, callIDs)
 		emit.StepFinished(a.opts.stepModel)
 		if err != nil {
 			// A cancelled context or an already-blocked emitter means the
@@ -272,6 +290,10 @@ func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error
 
 		assistant := turn.message
 		conv.AppendWithID(assistant, turn.msgID)
+		if turn.usage != nil {
+			usage = addUsage(usage, turn.usage)
+			emit.SetUsage(*usage)
+		}
 		if h := a.opts.hooks.OnModelTurn; h != nil {
 			h(ctx, TurnInfo{
 				Iteration: iterations,
@@ -285,7 +307,7 @@ func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error
 			return finish("success", a.finishSuccess(emit, conv, state)) // final answer (PT: resposta final)
 		}
 
-		actionable := validateToolCalls(logger, assistant, conv)
+		actionable := validateToolCalls(logger, emit, assistant, conv)
 		if len(actionable) == 0 {
 			continue // only malformed calls this turn; the model corrects itself (PT: só chamadas malformadas neste turno; o modelo se corrige)
 		}
@@ -305,18 +327,21 @@ func (a *Agent) Run(ctx context.Context, emit *Emitter, in *RunAgentInput) error
 			//
 			// The server calls of this turn will not be executed, so we answer
 			// each one with a synthetic result; otherwise the MESSAGES_SNAPSHOT
-			// would carry a tool call without an answer, and sequence
-			// validators reject that.
+			// would carry a tool call without an answer, and the run's
+			// pendingToolCallIds — which AG-UI 1.0 requires to name exactly
+			// the calls left unanswered — would include them.
 			//
 			// PT: Devolve o controle: o cliente executa e reenvia o histórico
 			// completo num run novo.
 			//
 			// As chamadas de servidor deste turno não serão executadas, então
 			// respondemos cada uma com um resultado sintético; senão o
-			// MESSAGES_SNAPSHOT carregaria uma tool call sem resposta, e
-			// validadores de sequência rejeitam isso.
+			// MESSAGES_SNAPSHOT carregaria uma tool call sem resposta, e o
+			// pendingToolCallIds do run — que o AG-UI 1.0 exige que nomeie
+			// exatamente as chamadas sem resposta — as incluiria.
 			for _, sc := range serverCalls {
 				const result = `{"error":"not executed: a client tool in this turn took priority"}`
+				emit.ToolResult(uuid.NewString(), sc.ID, result)
 				conv.Append(schema.ToolMessage(result, sc.ID))
 			}
 			return finish("success", a.finishSuccess(emit, conv, state))
@@ -391,7 +416,7 @@ func (a *Agent) settleToolCalls(
 		// chamada com a recusa, e o modelo segue a partir dela.
 		if isCancelled(rc.Resume(), sc.ID) {
 			const result = `{"status":"cancelled","note":"the user declined this action"}`
-			emit.ToolResult(events.GenerateMessageID(), sc.ID, result)
+			emit.ToolResult(uuid.NewString(), sc.ID, result)
 			conv.Append(schema.ToolMessage(result, sc.ID))
 			continue
 		}
@@ -428,7 +453,7 @@ func (a *Agent) settleToolCalls(
 		//
 		// PT: O TOOL_CALL_* já saiu no streaming do turno; aqui vai só o
 		// resultado, que é o que o cliente renderiza como "backend tool".
-		emit.ToolResult(events.GenerateMessageID(), sc.ID, result)
+		emit.ToolResult(uuid.NewString(), sc.ID, result)
 		conv.Append(schema.ToolMessage(result, sc.ID))
 	}
 	return its
@@ -532,12 +557,24 @@ func jsonList(names []string) string {
 // adapter: STATE_SNAPSHOT, then MESSAGES_SNAPSHOT, then RUN_FINISHED
 // (get_state_and_messages_snapshots, in ag_ui_langgraph/agent.py).
 //
+// When the run hands frontend tool calls to the client, RUN_FINISHED carries
+// the success outcome with pendingToolCallIds: AG-UI 1.0 says a consumer must
+// not read the absence of that list as "nothing pending".
+//
 // PT: finishSuccess emite a cauda do run na mesma ordem do adaptador Python:
 // STATE_SNAPSHOT, depois MESSAGES_SNAPSHOT, depois RUN_FINISHED
 // (get_state_and_messages_snapshots, em ag_ui_langgraph/agent.py).
+//
+// Quando o run entrega tool calls de frontend ao cliente, o RUN_FINISHED leva
+// o outcome de sucesso com pendingToolCallIds: o AG-UI 1.0 diz que um
+// consumidor não deve ler a ausência dessa lista como "nada pendente".
 func (a *Agent) finishSuccess(emit *Emitter, conv *Conversation, state *State) error {
 	emit.StateSnapshot(state.Snapshot())
 	emit.MessagesSnapshot(conv.Snapshot())
+	if pending := emit.PendingToolCalls(); len(pending) > 0 {
+		emit.RunFinishedPending(pending...)
+		return nil
+	}
 	emit.RunFinished()
 	return nil
 }
@@ -557,7 +594,10 @@ func (a *Agent) finishInterrupt(emit *Emitter, conv *Conversation, state *State,
 }
 
 // pendingResumeCalls returns the tool calls that were left without an answer
-// in the previous run and for which the client has now sent a decision.
+// in the previous run and for which the client has now sent a decision
+// (paused), and the unanswered calls to this agent's server tools that the
+// resume does not cover (uncovered). Resume entries that name no open call
+// are logged and ignored, as AG-UI 1.0 asks of a producer.
 //
 // There is no store on the server, and that is deliberate: AG-UI already
 // resends the whole history on every request, so the pending call ARRIVES in
@@ -565,15 +605,18 @@ func (a *Agent) finishInterrupt(emit *Emitter, conv *Conversation, state *State,
 // nothing and would become wrong as soon as there was more than one replica.
 //
 // PT: pendingResumeCalls devolve as tool calls que ficaram sem resposta no run
-// anterior e para as quais o cliente mandou uma decisão agora.
+// anterior e para as quais o cliente mandou uma decisão agora (paused), e as
+// chamadas sem resposta às tools de servidor deste agente que o resume não
+// cobre (uncovered). Entradas do resume que não nomeiam chamada aberta são
+// registradas em log e ignoradas, como o AG-UI 1.0 pede a um produtor.
 //
 // Não há store no servidor, e isso é deliberado: o AG-UI já reenvia o histórico
 // inteiro a cada requisição, então a chamada pendente CHEGA na conversa — basta
 // encontrá-la. Um store em memória não acrescentaria nada e passaria a estar
 // errado assim que houvesse mais de uma réplica.
-func pendingResumeCalls(conv *Conversation, resume []ResumeEntry) []schema.ToolCall {
+func (a *Agent) pendingResumeCalls(conv *Conversation, resume []ResumeEntry, logger *slog.Logger) (paused, uncovered []schema.ToolCall) {
 	if len(resume) == 0 {
-		return nil
+		return nil, nil
 	}
 	decided := make(map[string]bool, len(resume))
 	for _, e := range resume {
@@ -590,18 +633,75 @@ func pendingResumeCalls(conv *Conversation, resume []ResumeEntry) []schema.ToolC
 		}
 	}
 
-	var out []schema.ToolCall
+	open := map[string]bool{}
 	for _, m := range msgs {
 		if m.Role != schema.Assistant {
 			continue
 		}
 		for _, tc := range m.ToolCalls {
-			if tc.ID != "" && decided[tc.ID] && !answered[tc.ID] {
-				out = append(out, tc)
+			if tc.ID == "" || answered[tc.ID] {
+				continue
+			}
+			switch {
+			case decided[tc.ID]:
+				open[tc.ID] = true
+				paused = append(paused, tc)
+			case a.invokable[tc.Function.Name] != nil:
+				uncovered = append(uncovered, tc)
 			}
 		}
 	}
-	return out
+	for _, e := range resume {
+		if !open[e.InterruptID] {
+			logger.Warn("resume entry names no open interrupt; ignoring it",
+				"interruptId", e.InterruptID)
+		}
+	}
+	for _, tc := range uncovered {
+		logger.Warn("resume does not cover a paused tool call; interrupting again",
+			"tool", tc.Function.Name, "toolCallId", tc.ID)
+	}
+	return paused, uncovered
+}
+
+// stillOpenInterrupt re-raises the interrupt of a paused call the resume did
+// not cover. The original request is not stored on the server, so the
+// interrupt says only that the decision is still missing.
+//
+// PT: stillOpenInterrupt levanta de novo o interrupt de uma chamada pausada que
+// o resume não cobriu. O pedido original não fica guardado no servidor, então o
+// interrupt diz apenas que a decisão ainda falta.
+func stillOpenInterrupt(tc schema.ToolCall) InterruptPoint {
+	return (&InterruptError{Request: InterruptRequest{
+		Message: fmt.Sprintf("the call to %q is still awaiting a decision: the resume did not answer it", tc.Function.Name),
+	}}).toAGUI(tc.ID)
+}
+
+// addUsage accumulates the token usage of one model turn into the run total
+// reported on the terminal event.
+//
+// PT: addUsage acumula o uso de tokens de um turno do modelo no total do run
+// informado no evento terminal.
+func addUsage(total *TokenUsage, u *schema.TokenUsage) *TokenUsage {
+	if total == nil {
+		total = &TokenUsage{}
+	}
+	add := func(dst **int64, n int) {
+		if *dst == nil {
+			*dst = new(int64)
+		}
+		**dst += int64(n)
+	}
+	add(&total.InputTokens, u.PromptTokens)
+	add(&total.OutputTokens, u.CompletionTokens)
+	add(&total.TotalTokens, u.TotalTokens)
+	if n := u.PromptTokenDetails.CachedTokens; n > 0 || total.CachedInputTokens != nil {
+		add(&total.CachedInputTokens, n)
+	}
+	if n := u.CompletionTokensDetails.ReasoningTokens; n > 0 || total.ReasoningTokens != nil {
+		add(&total.ReasoningTokens, n)
+	}
+	return total
 }
 
 // isCancelled reports whether the human declined the call.

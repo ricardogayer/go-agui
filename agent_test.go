@@ -22,7 +22,7 @@ func TestTextTurnEmitsThePythonAdapterSequence(t *testing.T) {
 		agui.EventRunStarted,
 		agui.EventStepStarted,
 		agui.EventTextMessageStart,
-		agui.EventTextMessageChunk, agui.EventTextMessageChunk, agui.EventTextMessageChunk,
+		agui.EventTextMessageContent, agui.EventTextMessageContent, agui.EventTextMessageContent,
 		agui.EventTextMessageEnd,
 		agui.EventStepFinished,
 		agui.EventStateSnapshot,

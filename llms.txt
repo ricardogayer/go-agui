@@ -1,13 +1,15 @@
 # go-agui
 
-> Biblioteca Go que implementa o protocolo AG-UI (https://docs.ag-ui.com) sobre SSE, com o laço modelo↔tools construído no CloudWeGo Eino. Você escreve o agente (prompt, tools, estado); a biblioteca cuida do contrato: `POST /` recebendo `RunAgentInput`, resposta `text/event-stream` com a sequência de eventos AG-UI, healthcheck, cancelamento e desligamento gracioso. Qualquer runtime que fale AG-UI (ex.: CopilotKit via `HttpAgent`) conversa com o servidor sem saber que há Go do outro lado.
+> Biblioteca Go que implementa o protocolo AG-UI 1.0 (https://docs.ag-ui.com/spec/1.0) sobre HTTP + SSE e HTTP + Protobuf, com o laço modelo↔tools construído no CloudWeGo Eino. Você escreve o agente (prompt, tools, estado); a biblioteca cuida do contrato: `POST /` recebendo `RunAgentInput`, resposta `text/event-stream` (ou Protobuf, negociado pelo `Accept`) com a sequência de eventos AG-UI, healthcheck, cancelamento e desligamento gracioso. Qualquer runtime que fale AG-UI (ex.: CopilotKit via `HttpAgent`) conversa com o servidor sem saber que há Go do outro lado.
 
 Fatos essenciais:
 
-- Versão atual: v0.2.1 (tags `v0.2.1`, `model/v0.2.1`, `ginx/v0.2.1`).
-- Módulos publicados: núcleo `github.com/ricardogayer/go-agui` (agente, handler, emitter, estado, tools); `.../model` (OpenAI e Ollama via eino-ext); `.../ginx` (adaptador Gin). Pacotes dentro do módulo núcleo (não são módulos separados): `.../aguitest` (FakeModel e asserções) e `.../a2ui` (operações A2UI v0.9).
+- Versão atual: v0.3.0 (tags `v0.3.0`, `model/v0.3.0`, `ginx/v0.3.0`).
+- Módulos publicados: núcleo `github.com/ricardogayer/go-agui` (agente, handler, emitter, estado, tools, e a camada de protocolo AG-UI 1.0 em `pkg/`: `pkg/agui` modelo de dados/validação/verificador, `pkg/sse`, `pkg/protobuf`, `pkg/stream` produtor, `pkg/server`, `pkg/client` consumidor); `.../model` (OpenAI e Ollama via eino-ext); `.../ginx` (adaptador Gin). Pacotes dentro do módulo núcleo (não são módulos separados): `.../aguitest` (FakeModel e asserções) e `.../a2ui` (operações A2UI v0.9).
 - Requisitos: Go 1.24.4+ (núcleo e model); Go 1.25+ (ginx e exemplos).
 - O chat model é um `model.ToolCallingChatModel` do Eino; uma tool é um `tool.BaseTool` do Eino — qualquer tool do ecossistema eino-ext (MCP etc.) entra sem adaptador.
+- Conformidade AG-UI 1.0: todo evento é validado contra o schema oficial e verificado contra as regras de sequência antes de ser escrito; input lido sob o modelo de processamento (valor conhecido malformado → HTTP 400 antes do stream); `RUN_STARTED` declara `protocolVersion: "1.0"`; tools de frontend terminam o run com `pendingToolCallIds`; interrupt/resume segundo o 1.0 (resume sem cobertura → interrupt de novo); `usage` de tokens no evento terminal; `agui.Capabilities(caps)` serve `AgentCapabilities`. Os testes oficiais do schema, do corpus de conformidade, do Protobuf e dos SDKs Python e .NET estão migrados em `pkg/agui`.
+- Mensagens são os tipos do 1.0: `agui.Message` é interface (`*agui.UserMessage`, `*agui.AssistantMessage`, `*agui.SystemMessage`, `*agui.DeveloperMessage`, `*agui.ToolMessage`, `*agui.ActivityMessage`, `*agui.ReasoningMessage`), lida com type switch; conteúdo de user/tool é `agui.Content` (`agui.TextContent("...")`, `agui.PartsContent(...)`).
 - Um run emite, na ordem: `RUN_STARTED`; por iteração do laço, um par `STEP_STARTED`/`STEP_FINISHED` (step `"model"`) com os blocos de texto (`TEXT_MESSAGE_START/_CONTENT/_END`) e de tool call (`TOOL_CALL_START/_ARGS/_END`) e, quando o servidor executa tools, um segundo par (step `"tools"`) com os `TOOL_CALL_RESULT`s e os `STATE_DELTA`s que as tools emitirem; então `STATE_SNAPSHOT`, `MESSAGES_SNAPSHOT` e exatamente UM evento terminal (`RUN_FINISHED` ou `RUN_ERROR`). Em erro fatal (modelo, ligação de tools) o `RUN_ERROR` sai sem os snapshots.
 - Não há estado de sessão no servidor (o AG-UI reenvia o histórico inteiro a cada requisição) — escala horizontal é livre.
 - `*Agent` é seguro para uso concorrente e não é mutado por requisição.
@@ -271,12 +273,13 @@ aguitest.RequireBalanced(t, evs) // todo START tem END, sem sobreposição, UM t
 aguitest.RequireContains(t, evs, agui.EventToolCallResult, agui.EventRunFinished)
 ```
 
-Também: `RequireSequence` (sequência exata), `Collect` (exercita um `http.Handler`), `ParseSSE` (decodifica um stream SSE cru), `First`/`All`/`Types`/`ConcatenatedText`, `FakeModel.Calls()` (mensagens que o modelo recebeu) e `BoundTools()` (tools ligadas) — para afirmar sobre o que o agente MONTOU, não só o que emitiu.
+`Run`/`Collect` também verificam a conformidade AG-UI 1.0 do stream (`RequireConformant`) e reprovam o teste se o `Emitter` descartar um evento. Também: `RequireSequence` (sequência exata), `Collect` (exercita um `http.Handler`), `ParseSSE` (decodifica um stream SSE cru), `First`/`All`/`Types`/`ConcatenatedText`, `FakeModel.Calls()` (mensagens que o modelo recebeu) e `BoundTools()` (tools ligadas) — para afirmar sobre o que o agente MONTOU, não só o que emitiu.
 
 ## Armadilhas do protocolo que a biblioteca já resolve
 
-- Um evento inválido derruba o stream inteiro no `@ag-ui/client` → a biblioteca descarta o evento recusado (`ErrEventDropped`) e mantém o stream vivo.
-- `toolCallId` vazio é recusado pelo SDK → fragmentos de argumento ficam em buffer até id e nome chegarem.
+- Um evento inválido derruba o stream inteiro num consumidor conforme → a biblioteca valida antes de escrever, descarta o evento recusado (`ErrEventDropped`) e mantém o stream vivo; um `RUN_FINISHED` recusado vira `RUN_ERROR`.
+- A tool call precisa do id antes de começar → fragmentos de argumento ficam em buffer até id e nome chegarem.
+- Provedores que repetem ids de tool call entre turnos → o id repetido é renomeado no fio e no histórico.
 - Não emitir `TOOL_CALL_*` duas vezes.
 - `MESSAGES_SNAPSHOT` é obrigatório e os ids das mensagens precisam ser estáveis (a `Conversation` preserva o id AG-UI original).
 - Histórico reenviado pelo cliente com respostas de tool fora de posição → `RepairToolPairs` conserta o que vai ao modelo.
@@ -287,9 +290,9 @@ Também: `RequireSequence` (sequência exata), `Collect` (exercita um `http.Hand
 ## Instalação e exemplos
 
 ```bash
-go get github.com/ricardogayer/go-agui@v0.2.1
-go get github.com/ricardogayer/go-agui/model@v0.2.1  # opcional
-go get github.com/ricardogayer/go-agui/ginx@v0.2.1   # opcional
+go get github.com/ricardogayer/go-agui@v0.3.0
+go get github.com/ricardogayer/go-agui/model@v0.3.0  # opcional
+go get github.com/ricardogayer/go-agui/ginx@v0.3.0   # opcional
 ```
 
 Smoke test sem frontend:
@@ -298,6 +301,7 @@ Smoke test sem frontend:
 export MODEL_PROVIDER=openai MODEL=gpt-4o-mini OPENAI_API_KEY=sk-...
 go run ./examples/quickstart
 curl -N -X POST localhost:8000 -H 'content-type: application/json' \
+  -H 'accept: text/event-stream' \
   -d '{"threadId":"t1","runId":"r1","messages":[{"id":"m1","role":"user","content":"oi"}]}'
 ```
 

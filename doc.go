@@ -1,5 +1,8 @@
-// Package agui exposes an agent that speaks the AG-UI protocol over SSE, with
-// the model↔tools loop built on top of CloudWeGo Eino.
+// Package agui exposes an agent that speaks the AG-UI 1.0 protocol (HTTP + SSE
+// and HTTP + Protobuf), with the model↔tools loop built on top of CloudWeGo
+// Eino. Every event is validated against the official 1.0 schema and sequence
+// rules before it is written; the protocol layer itself lives in the pkg/
+// packages of this module.
 //
 // The contract is the same one the Python adapter `ag_ui_langgraph` sets up: a
 // `POST /` route that receives a RunAgentInput as JSON and returns
@@ -52,8 +55,11 @@
 // tools reach it through the context and may emit from another goroutine. A
 // *Conversation is per run and must not be shared.
 //
-// PT: O pacote agui expõe um agente que fala o protocolo AG-UI sobre SSE, com o
-// laço modelo↔tools construído sobre o CloudWeGo Eino.
+// PT: O pacote agui expõe um agente que fala o protocolo AG-UI 1.0 (HTTP + SSE
+// e HTTP + Protobuf), com o laço modelo↔tools construído sobre o CloudWeGo
+// Eino. Todo evento é validado contra o schema oficial 1.0 e as regras de
+// sequência antes de ser escrito; a camada de protocolo fica nos pacotes pkg/
+// deste módulo.
 //
 // O contrato é o mesmo que o adaptador Python `ag_ui_langgraph` monta: uma rota
 // `POST /` que recebe um RunAgentInput em JSON e devolve `text/event-stream`

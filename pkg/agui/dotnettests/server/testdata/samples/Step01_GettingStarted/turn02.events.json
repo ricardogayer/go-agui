@@ -1,0 +1,124 @@
+[
+ {
+  "type": "RUN_STARTED",
+  "threadId": "thread_Id_2",
+  "runId": "run_Id_2",
+  "protocolVersion": "1.0"
+ },
+ {
+  "type": "TEXT_MESSAGE_START",
+  "messageId": "chatcmpl-Id_2",
+  "role": "assistant"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "I'm"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " doing"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " well"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": ","
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " thanks"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " —"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " ready"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " to"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " help"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "."
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " What"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " can"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " I"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " do"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " for"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " you"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " today"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "?"
+ },
+ {
+  "type": "TEXT_MESSAGE_END",
+  "messageId": "chatcmpl-Id_2"
+ },
+ {
+  "type": "RUN_FINISHED",
+  "threadId": "thread_Id_2",
+  "runId": "run_Id_2",
+  "outcome": {
+   "type": "success"
+  },
+  "usage": [
+   {
+    "inputTokens": 30,
+    "outputTokens": 28,
+    "totalTokens": 58,
+    "reasoningTokens": 0,
+    "cachedInputTokens": 0
+   }
+  ]
+ }
+]

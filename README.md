@@ -2,8 +2,9 @@
 
 *Read this in [Portuguese (pt-BR)](README_PT.md).*
 
-**A Go library implementing the [AG-UI](https://docs.ag-ui.com) protocol over
-SSE, with the model↔tools loop built on [CloudWeGo Eino](https://github.com/cloudwego/eino).**
+**A Go library implementing the [AG-UI 1.0](https://docs.ag-ui.com/spec/1.0)
+protocol (HTTP + SSE and HTTP + Protobuf), with the model↔tools loop built on
+[CloudWeGo Eino](https://github.com/cloudwego/eino).**
 
 You write the agent in Go — prompt, tools, state — and the library takes care of
 the rest of the contract: the `POST /` that receives a `RunAgentInput`, the
@@ -31,6 +32,7 @@ cancellation on client disconnect and the complete AG-UI event sequence.
 ## Contents
 
 - [What the library is](#what-the-library-is)
+- [AG-UI 1.0 conformance](#ag-ui-10-conformance)
 - [Installation](#installation)
 - [Try it without deploying anything](#try-it-without-deploying-anything)
 - **Usage**
@@ -60,11 +62,11 @@ The AG-UI contract it implements is the same one the Python adapter
 
 | Route | What it does |
 |---|---|
-| `POST /` | receives a `RunAgentInput` in JSON, responds `text/event-stream` with AG-UI events |
+| `POST /` | receives a `RunAgentInput` in JSON, responds with AG-UI events: `text/event-stream`, or `application/vnd.ag-ui.event+proto` when the client's `Accept` admits it |
 | `GET /health` | healthcheck with `{"agent":{"name":...},"status":"ok"}` |
 | `GET //health` | same, rewritten to `/health` (compatibility with probes written against the Python backend) |
 
-A complete run emits, in order: `RUN_STARTED`; then, per iteration of the loop,
+A complete run emits, in order: `RUN_STARTED` (declaring `protocolVersion: "1.0"`); then, per iteration of the loop,
 a `STEP_STARTED` / `STEP_FINISHED` pair (step `"model"`) enclosing the text
 blocks (`TEXT_MESSAGE_START` / `_CONTENT` / `_END`) and tool call blocks
 (`TOOL_CALL_START` / `_ARGS` / `_END`), and — when the server executes tools — a
@@ -72,6 +74,10 @@ second pair (step `"tools"`) enclosing the `TOOL_CALL_RESULT`s and any
 `STATE_DELTA`s the tools emit; then `STATE_SNAPSHOT`, `MESSAGES_SNAPSHOT` and
 exactly **one** terminal event (`RUN_FINISHED` or `RUN_ERROR`). On a fatal error
 (model failure, tool binding) `RUN_ERROR` goes out without the two snapshots.
+`RUN_FINISHED` carries the 1.0 outcome: plain success, success with
+`pendingToolCallIds` when frontend tools were handed to the client, or the
+interrupt outcome when a tool asked for a human decision; the terminal event
+also reports the run's token `usage`.
 
 The model↔tools loop behind this is Eino: the chat model is a
 `model.ToolCallingChatModel`, and a tool is a `tool.BaseTool`. That's not an
@@ -82,22 +88,92 @@ own `ChatModel` without touching the library.
 **Requirements:** Go 1.24.4+ (the core and `model`); Go 1.25+ for `ginx` and the
 examples.
 
+## AG-UI 1.0 conformance
+
+The library follows the two sources of authority of the
+[specification](https://docs.ag-ui.com/spec/1.0):
+
+- **Structure**: the official [`schema.json`](https://docs.ag-ui.com/spec/1.0/schema.json)
+  is embedded unchanged (`pkg/agui/spec/1.0/schema.json`). Every validation is an
+  interpretation of that file, not a hand-written copy.
+- **Behaviour**: the normative rules (MUST/MUST NOT) of the prose are implemented
+  for both roles, **producer** (agent) and **consumer** (client): run lifecycle,
+  open/content/close discipline, chunks, subagent attribution, the processing
+  model (unknown material dropped with a warning; a malformed known value is
+  fatal), metadata, snapshot/delta, interrupt/resume, versioning and both
+  transport bindings.
+
+Every event the agent emits goes through that layer **before** it is written:
+it is validated against the schema and checked against the sequence rules. A
+non-conformant event never reaches the wire (`ErrEventDropped`), and a
+`RUN_FINISHED` the protocol would refuse is replaced by a `RUN_ERROR`, so the
+client always gets a terminal event. On top of that, the agent loop does what
+1.0 asks of a producer:
+
+| Rule | What the library does |
+|---|---|
+| Input is read under the processing model | unknown fields dropped with a warning; a malformed known value answers **HTTP 400 before any stream**; retired forms (`binary` parts, legacy `null`s) are converted |
+| Version negotiation | `RUN_STARTED` declares `protocolVersion: "1.0"`; newer minors are served, another major can be refused with `WithRejectOtherMajorVersions()` |
+| Two bindings | HTTP + SSE always; HTTP + Protobuf negotiated through `Accept` (`WithoutProtobuf()` turns it off) |
+| Frontend tool calls | the run ends with the success outcome and `pendingToolCallIds` naming exactly the calls left unanswered, in call order |
+| Every started call is answered or pending | skipped server calls and malformed calls get a `TOOL_CALL_RESULT` |
+| Tool call ids identify a call | an id the provider repeats across turns (`call_0` again) is renamed, on the wire and in the history |
+| Interrupt / resume | interrupt outcome with unique ids; a resume that leaves a paused call uncovered ends with the interrupt outcome again, without running it; entries naming no open interrupt are logged and ignored |
+| Snapshots | `MESSAGES_SNAPSHOT` returns the request messages verbatim (multimodal parts, reasoning, metadata) and keeps ids stable |
+| Token usage | the run's total `usage` goes on the terminal event |
+| Capabilities | `agui.Capabilities(caps)` serves a schema-validated `AgentCapabilities` |
+
+The protocol layer lives in the core module, under `pkg/`, and is usable on its
+own:
+
+| Package | What it is |
+|---|---|
+| `pkg/agui` (imported as `wire` by the core) | the 1.0 data model (31 events, messages, multimodal content, outcomes, capabilities), schema validation, `Sanitize`, sequence verifier, chunk expansion, JSON Patch, versioning, compatibility shims |
+| `pkg/sse` | SSE framing (LF writing, full-grammar reading) |
+| `pkg/protobuf` | HTTP + Protobuf binding: codec, framing, negotiation |
+| `pkg/stream` | producer: writes only conformant events to an HTTP response |
+| `pkg/server` | a low-level `net/http` handler for agents that drive a `stream.SSE` directly |
+| `pkg/client` | consumer: `HttpAgent`-style client, processing pipeline, `Store` |
+
+What the tests verify (`make test`):
+
+| Check | Result |
+| --- | --- |
+| [Official schema fixtures](https://github.com/ag-ui-protocol/ag-ui/tree/main/spec/1.0/fixtures): valid documents accepted, invalid ones rejected by the same rule | 219/219 |
+| Typed round trip: every valid fixture decoded into the Go type and re-encoded produces the same JSON | 135/135 |
+| [Official consumer conformance corpus](https://github.com/ag-ui-protocol/ag-ui/tree/main/spec/1.0/conformance/streams), replayed over real HTTP | 68/68 (1 with a documented override) |
+| Protobuf byte corpus (TypeScript and .NET reference encoders) | 98/98 byte-identical |
+| [Official Python SDK tests](https://github.com/ag-ui-protocol/ag-ui/tree/main/sdks/python/tests) ported to Go (`pkg/agui/pytests`) | 268 tests: 242 pass, 26 N/A in Go (Python-only APIs, reason recorded in each test) |
+| [Official .NET SDK tests](https://github.com/ag-ui-protocol/ag-ui/tree/main/sdks/dotnet) ported to Go (`pkg/agui/dotnettests`), including the Protobuf binding | 887 tests: 805 pass, 82 N/A in Go (A2UI, cross-language integration and .NET-only APIs, reason recorded in each test) |
+| Every stream of the agent's own tests replayed through a conformant consumer (`aguitest.RequireConformant`) | always |
+| The reference client (`pkg/client`) talking to an `agui.Agent` over real HTTP, on SSE and on Protobuf | no errors, no warnings |
+
+The override: the `unknown-enum-value-role-fatal` fixture pins an *admitted gap*
+of the reference client (an unknown `role` value is fatal there). The
+specification (`basic/processing.mdx`) requires it to be dropped with a warning,
+and that is what this library does.
+
+The official fixtures and conformance corpus are in
+`pkg/agui/testdata/spec-1.0` (MIT license of the AG-UI project; the source
+commit is in `UPSTREAM_COMMIT`).
+
 ## Installation
 
 ```bash
-go get github.com/ricardogayer/go-agui@v0.2.1
-go get github.com/ricardogayer/go-agui/model@v0.2.1   # model providers (optional)
-go get github.com/ricardogayer/go-agui/ginx@v0.2.1    # Gin adapter (optional)
+go get github.com/ricardogayer/go-agui@v0.3.0
+go get github.com/ricardogayer/go-agui/model@v0.3.0   # model providers (optional)
+go get github.com/ricardogayer/go-agui/ginx@v0.3.0    # Gin adapter (optional)
 ```
 
 Three published modules, on purpose (a fourth, `examples`, exists only in the
-repository). The core depends only on the AG-UI SDK, Eino and two
-utilities — no web framework, no provider client. Whoever uses `chi` doesn't drag
+repository). The core depends only on Eino and a few utilities (its AG-UI 1.0
+protocol layer is part of the module, under `pkg/`) — no web framework, no
+provider client. Whoever uses `chi` doesn't drag
 in Gin; whoever already has their own `ChatModel` doesn't drag in `eino-ext`.
 
 | Module | Import | Brings |
 |---|---|---|
-| core | `github.com/ricardogayer/go-agui` | agent, handler, emitter, state, tools |
+| core | `github.com/ricardogayer/go-agui` | agent, handler, emitter, state, tools, and the AG-UI 1.0 protocol layer (`pkg/...`) |
 | `model` | `.../go-agui/model` | OpenAI and Ollama via `eino-ext` |
 | `ginx` | `.../go-agui/ginx` | Gin: routes, engine, CORS, `ListenAndServe` |
 | `aguitest` | `.../go-agui/aguitest` | `FakeModel` and assertions (subpackage of the core) |
@@ -112,8 +188,12 @@ export MODEL_PROVIDER=openai MODEL=gpt-4o-mini OPENAI_API_KEY=sk-...
 go run ./examples/quickstart
 
 curl -N -X POST localhost:8000 -H 'content-type: application/json' \
+  -H 'accept: text/event-stream' \
   -d '{"threadId":"t1","runId":"r1","messages":[{"id":"m1","role":"user","content":"hi"}]}'
 ```
+
+(`accept: text/event-stream` matters: curl sends `Accept: */*` by default, which
+admits the Protobuf binding — and AG-UI 1.0 negotiation would answer in binary.)
 
 You see the raw SSE frames: `RUN_STARTED`, `STEP_STARTED`, `TEXT_MESSAGE_START`,
 the deltas, `TEXT_MESSAGE_END`, `STEP_FINISHED`, `STATE_SNAPSHOT`,
@@ -349,6 +429,11 @@ func approvePurchase(ctx context.Context, in Purchase) (string, error) {
 is not a resume value, and returning it as if it were would make the tool execute
 precisely what the user refused — use `Resume()` to inspect cancellations.
 
+AG-UI 1.0 requires the resume to cover every interrupt of the run being
+continued. If a paused call is left without an entry, the library does not run
+it and does not move past it: the run ends with the interrupt outcome again.
+Entries naming no open interrupt are logged and ignored.
+
 There is no store on the server, and that's deliberate: AG-UI resends the entire
 history on every request, so the pending call **arrives** with the conversation.
 An in-memory store would add nothing and would start being wrong the moment there
@@ -470,9 +555,9 @@ Gin doesn't end up in the `go.mod` of whoever uses `chi`, `echo` or plain
 mkdir my-agent && cd my-agent
 go mod init github.com/you/my-agent
 
-go get github.com/ricardogayer/go-agui@v0.2.1
-go get github.com/ricardogayer/go-agui/ginx@v0.2.1
-go get github.com/ricardogayer/go-agui/model@v0.2.1
+go get github.com/ricardogayer/go-agui@v0.3.0
+go get github.com/ricardogayer/go-agui/ginx@v0.3.0
+go get github.com/ricardogayer/go-agui/model@v0.3.0
 ```
 
 ### 2. The `main.go`
@@ -522,6 +607,7 @@ curl -s localhost:8000/health
 # {"agent":{"name":"my-agent"},"status":"ok"}
 
 curl -N -X POST localhost:8000 -H 'content-type: application/json' \
+  -H 'accept: text/event-stream' \
   -d '{"threadId":"t1","runId":"r1","messages":[{"id":"m1","role":"user","content":"hi"}]}'
 ```
 
@@ -560,6 +646,8 @@ ginx.ListenAndServe(ctx, agui.Addr(8000), ag, "my-agent",
 		agui.WithHandlerLogger(logger),                // logger for the handler and the SSE writer
 		agui.WithShutdownContext(ctx),                 // SIGTERM cancels in-flight streams
 		agui.WithMaxBodyBytes(8<<20),                  // 413 above 8 MiB (default: no limit)
+		agui.WithRejectOtherMajorVersions(),           // 400 for a client of another major version
+		agui.WithoutProtobuf(),                        // always SSE (default: negotiated via Accept)
 		agui.WithOnDropped(func(ctx context.Context, ev agui.Event, err error) {
 			metrics.DroppedEvent(ev.Type())            // default: log at ERROR
 		}),
@@ -665,12 +753,22 @@ like.
 | **1** | `ginx.Register(r, ag, name)` / `agui.Handler(ag)` / `agui.Mux(...)` | you already have a router |
 | **2** | implement `agui.Runner` | you want your own loop, keeping SSE and lifecycle |
 | **3** | `Emitter`, `Conversation`, `ClassifyToolCalls` | you want to control every event on the wire |
+| **4** | `pkg/stream`, `pkg/server`, `pkg/agui` | you want the bare AG-UI 1.0 protocol layer, without the Eino agent |
 
 No level is a wall: you can drop down a step without rewriting the rest. At level
 2, a `Runner` is a one-method interface — `Run(ctx, *Emitter, *RunAgentInput) error`
 — and `RunnerFunc` adapts a function to it. `RUN_STARTED` has already been emitted
 when `Run` is called; returning an error is enough to end the run, because the
 handler emits the `RUN_ERROR` if no terminal event went out.
+
+At level 3 the `Emitter` covers the whole 1.0 surface: text, tool calls and
+results (`ToolResultParts` for multimodal results), reasoning
+(`ReasoningStart`/`ReasoningMessage*`/`ReasoningEnd`), state, activity
+(`ActivitySnapshot`/`ActivityDelta`), `Custom`/`Raw`, and every terminal form
+(`RunFinished`, `RunFinishedWithResult`, `RunFinishedPending`,
+`RunFinishedWithInterrupts`, `RunCancelled`, `RunError`, `RunErrorCode`);
+`Send` emits any event of `pkg/agui`. Messages are the 1.0 types
+(`*agui.UserMessage`, `*agui.AssistantMessage`, ...), read with a type switch.
 
 ---
 
@@ -698,6 +796,11 @@ the most: every `START` has an `END`, no block overlaps, and the run has exactly
 sequence), `Collect` (to exercise an `http.Handler`), `ParseSSE` (to decode a raw SSE
 stream), plus `First`/`All`/`Types` and `ConcatenatedText`.
 
+`Run` and `Collect` also check, on every call, that the stream is AG-UI 1.0
+conformant: each event against the official schema and the whole sequence
+against the protocol rules, as a conformant consumer would
+(`RequireConformant`). An event the `Emitter` refuses fails the test.
+
 On the other side, `FakeModel.Calls()` returns the messages the model received on
 each call, and `BoundTools()` the tool sets that were bound (`LastCall()` and
 `LastBoundNames()` are shortcuts to the most recent ones) — that's what lets you
@@ -710,12 +813,19 @@ about what it emitted.
 This is the expensive knowledge — what cost debugging against the wire and what
 you don't have to rediscover:
 
-- **One invalid event kills the entire stream.** `@ag-ui/client` does
-  `EventSchemas.parse` and calls `eventSubject.error` in the catch. The library
-  drops the rejected event (`ErrEventDropped`) and keeps the stream alive, so a
-  `RUN_ERROR` can still reach the client.
-- **An empty `toolCallId` is rejected by the SDK.** In streaming, id and name only
+- **One invalid event kills the entire stream.** A conformant consumer treats a
+  malformed event or a sequence violation as fatal. The library validates every
+  event against the 1.0 schema and sequence rules before writing it, drops the
+  rejected one (`ErrEventDropped`) and keeps the stream alive, so a terminal
+  event can still reach the client.
+- **A tool call needs its id before it starts.** In streaming, id and name only
   arrive in the first chunk. Argument fragments are buffered until both are known.
+- **Providers repeat tool call ids.** Some number the calls `call_0`, `call_1`, ...
+  again on every turn; in AG-UI a repeated id "reopens" the earlier call. The
+  repeated id is renamed on the wire and in the history.
+- **A frontend tool call is not "nothing pending".** AG-UI 1.0 consumers must not
+  read a bare `RUN_FINISHED` as "no work left"; the run reports
+  `pendingToolCallIds`, and every other started call gets an answer.
 - **Don't emit `TOOL_CALL_*` twice.** Whoever streams the calls can't re-emit them
   afterwards.
 - **`MESSAGES_SNAPSHOT` is mandatory.** Without it the frontend's message list has

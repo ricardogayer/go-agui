@@ -9,9 +9,9 @@ import (
 	"log/slog"
 	"strconv"
 
-	"github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
 	"github.com/cloudwego/eino/components/model"
 	"github.com/cloudwego/eino/schema"
+	"github.com/google/uuid"
 )
 
 // turnResult is what one model turn produced.
@@ -34,8 +34,9 @@ type turnResult struct {
 // chunks arrive, and returns the already concatenated assistant message.
 //
 // About tool calls: the model opens the call (chunk with id+name), sends
-// argument fragments and closes it. The SDK rejects a TOOL_CALL_START with an
-// empty toolCallId, so the fragments are buffered until id and name are known.
+// argument fragments and closes it. A TOOL_CALL_START without a toolCallId
+// could not be correlated with its arguments or its result, so the fragments
+// are buffered until id and name are known.
 // Whoever streams the tool calls must NOT re-emit them afterwards — that would
 // duplicate every call (the same trap ag_ui_adk documents with
 // `_translator_emitted_tool_call_ids`).
@@ -45,8 +46,9 @@ type turnResult struct {
 // concatenada.
 //
 // Sobre as tool calls: o modelo abre a chamada (chunk com id+nome), manda
-// fragmentos de argumento e fecha. O SDK recusa TOOL_CALL_START com toolCallId
-// vazio, então os fragmentos ficam em buffer até id e nome serem conhecidos.
+// fragmentos de argumento e fecha. Um TOOL_CALL_START sem toolCallId não
+// poderia ser correlacionado com seus argumentos nem com seu resultado, então
+// os fragmentos ficam em buffer até id e nome serem conhecidos.
 // Quem faz streaming das tool calls NÃO pode reemiti-las depois — isso
 // duplicaria cada chamada (a mesma armadilha que o ag_ui_adk documenta com
 // `_translator_emitted_tool_call_ids`).
@@ -55,6 +57,7 @@ func streamTurn(
 	emit *Emitter,
 	cm model.ToolCallingChatModel,
 	messages []*schema.Message,
+	ids toolCallIDs,
 ) (turnResult, error) {
 	// The assistant message id is decided before the first chunk: it is the
 	// messageId of the text block, the parentMessageId of the tool calls and
@@ -64,7 +67,7 @@ func streamTurn(
 	// PT: O id da mensagem do assistente é decidido antes do primeiro chunk: ele
 	// é o messageId do bloco de texto, o parentMessageId das tool calls e o id
 	// no MESSAGES_SNAPSHOT. Um id só mantém as três coisas coerentes no cliente.
-	res := turnResult{msgID: events.GenerateMessageID()}
+	res := turnResult{msgID: uuid.NewString()}
 
 	sr, err := cm.Stream(ctx, messages)
 	if err != nil {
@@ -83,6 +86,7 @@ func streamTurn(
 	type tcStream struct {
 		started  bool
 		id, name string
+		wireID   string   // id announced on the wire, unique in the thread (PT: id anunciado no fio, único na thread)
 		buffered []string // argument fragments held until id+name exist (PT: fragmentos de argumento retidos até id+nome existirem)
 	}
 	tcs := map[string]*tcStream{}
@@ -116,21 +120,22 @@ func streamTurn(
 			if tc.Function.Name != "" {
 				st.name = tc.Function.Name
 			}
-			if tc.ID != "" {
+			if tc.ID != "" && st.id == "" {
 				st.id = tc.ID
+				st.wireID = ids.claim(tc.ID)
 			}
 			frag := tc.Function.Arguments
 			switch {
 			case st.started:
-				emit.ToolArgs(st.id, frag) // the emitter ignores an empty fragment (PT: o emitter ignora fragmento vazio)
+				emit.ToolArgs(st.wireID, frag) // the emitter ignores an empty fragment (PT: o emitter ignora fragmento vazio)
 			case st.id != "" && st.name != "":
-				emit.ToolStart(st.id, st.name, res.msgID)
+				emit.ToolStart(st.wireID, st.name, res.msgID)
 				st.started = true
 				for _, b := range st.buffered {
-					emit.ToolArgs(st.id, b)
+					emit.ToolArgs(st.wireID, b)
 				}
 				st.buffered = nil
-				emit.ToolArgs(st.id, frag)
+				emit.ToolArgs(st.wireID, frag)
 			case frag != "":
 				st.buffered = append(st.buffered, frag)
 			}
@@ -150,7 +155,7 @@ func streamTurn(
 		closeText()
 		for _, key := range tcOrder {
 			if st := tcs[key]; st.started {
-				emit.ToolEnd(st.id)
+				emit.ToolEnd(st.wireID)
 				st.started = false // idempotent: never two ENDs for the same call (PT: idempotente: nunca dois END para a mesma chamada)
 			}
 		}
@@ -188,11 +193,66 @@ func streamTurn(
 	if err != nil {
 		return res, err
 	}
+	// The conversation must carry the ids the client saw.
+	// PT: A conversa precisa carregar os ids que o cliente viu.
+	for i, tc := range msg.ToolCalls {
+		if st := tcs[toolCallKey(tc)]; st != nil && st.wireID != "" && tc.ID == st.id {
+			msg.ToolCalls[i].ID = st.wireID
+		}
+	}
 	res.message = msg
 	if msg.ResponseMeta != nil {
 		res.usage = msg.ResponseMeta.Usage
 	}
 	return res, nil
+}
+
+// toolCallIDs is the set of tool call ids already used in the thread: the
+// ones in the history the client sent and the ones announced in this run.
+//
+// AG-UI 1.0 identifies a tool call by its id: reusing one (some providers
+// number calls "call_0", "call_1", ... again on every turn) makes the second
+// TOOL_CALL_START a "reopening" of the first, which the protocol refuses when
+// it disagrees with the opener — and the client would merge two different
+// calls. A repeated id is replaced by a fresh one, both on the wire and in the
+// conversation.
+//
+// PT: toolCallIDs é o conjunto de ids de tool call já usados na thread: os do
+// histórico que o cliente enviou e os anunciados neste run.
+//
+// O AG-UI 1.0 identifica uma tool call pelo id: reusar um (alguns provedores
+// numeram as chamadas "call_0", "call_1", ... de novo a cada turno) faz o
+// segundo TOOL_CALL_START virar uma "reabertura" do primeiro, que o protocolo
+// recusa quando discorda do original — e o cliente fundiria duas chamadas
+// diferentes. Um id repetido é trocado por um novo, no fio e na conversa.
+type toolCallIDs map[string]bool
+
+// usedToolCallIDs collects the tool call ids of the conversation.
+//
+// PT: usedToolCallIDs coleta os ids de tool call da conversa.
+func usedToolCallIDs(conv *Conversation) toolCallIDs {
+	ids := toolCallIDs{}
+	for _, m := range conv.Messages() {
+		for _, tc := range m.ToolCalls {
+			if tc.ID != "" {
+				ids[tc.ID] = true
+			}
+		}
+	}
+	return ids
+}
+
+// claim returns id when it is still unused, or a fresh id otherwise, and
+// marks the result as used.
+//
+// PT: claim devolve id quando ainda não foi usado, ou um id novo caso
+// contrário, e marca o resultado como usado.
+func (ids toolCallIDs) claim(id string) string {
+	if ids[id] {
+		id = "call_" + uuid.NewString()
+	}
+	ids[id] = true
+	return id
 }
 
 // toolCallKey identifies a streaming tool call stably across its chunks.
@@ -221,9 +281,9 @@ func toolCallKey(tc schema.ToolCall) string {
 // uncorrelatable (no response can be associated with it) and leaves the
 // message entirely.
 //
-// This is not zeal: an empty toolCallId is rejected by the SDK; the Emitter
-// would drop the event (ErrEventDropped) and the client would see a call with
-// no TOOL_CALL_START.
+// A corrective response to a call the client already saw (TOOL_CALL_START
+// went out) is also emitted as TOOL_CALL_RESULT: AG-UI 1.0 counts every
+// started call without a result as pending.
 //
 // PT: validateToolCalls separa as tool calls emitidas pelo modelo entre as que
 // ficam na mensagem do assistente (toda chamada mantida precisa de uma resposta
@@ -234,15 +294,18 @@ func toolCallKey(tc schema.ToolCall) string {
 // turno seguinte, mas não é encaminhada. Uma chamada sem id é incorrelacionável
 // (nenhuma resposta pode ser associada a ela) e sai da mensagem por completo.
 //
-// Isto não é zelo: um toolCallId vazio é recusado pelo SDK; o Emitter
-// descartaria o evento (ErrEventDropped) e o cliente veria uma chamada sem
-// TOOL_CALL_START.
-func validateToolCalls(logger *slog.Logger, assistant *schema.Message, conv *Conversation) []schema.ToolCall {
+// Uma resposta corretiva a uma chamada que o cliente já viu (o
+// TOOL_CALL_START saiu) também é emitida como TOOL_CALL_RESULT: o AG-UI 1.0
+// conta toda chamada iniciada sem resultado como pendente.
+func validateToolCalls(logger *slog.Logger, emit *Emitter, assistant *schema.Message, conv *Conversation) []schema.ToolCall {
 	kept := make([]schema.ToolCall, 0, len(assistant.ToolCalls))
 	actionable := make([]schema.ToolCall, 0, len(assistant.ToolCalls))
 	corrective := func(tc schema.ToolCall, result string) {
 		conv.Append(schema.ToolMessage(result, tc.ID))
 		kept = append(kept, tc)
+		if emit.startedToolCall(tc.ID) {
+			emit.ToolResult(uuid.NewString(), tc.ID, result)
+		}
 	}
 	for _, tc := range assistant.ToolCalls {
 		switch {

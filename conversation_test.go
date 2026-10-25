@@ -4,7 +4,6 @@ import (
 	"strings"
 	"testing"
 
-	types "github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	"github.com/cloudwego/eino/schema"
 )
 
@@ -237,7 +236,7 @@ func TestRepairDoesNotLeakIntoTheSnapshot(t *testing.T) {
 		t.Fatalf("the snapshot has %d messages, expected 2 (user + assistant): %v", len(snap), snap)
 	}
 	for _, m := range snap {
-		if m.Role == "tool" {
+		if m.MessageRole() == RoleTool {
 			t.Fatalf("synthetic answer leaked to the client: %v", m)
 		}
 	}
@@ -251,7 +250,7 @@ func TestRepairDoesNotLeakIntoTheSnapshot(t *testing.T) {
 // PT: O bloco de contexto tem o cabeçalho e o formato do CopilotKitMiddleware do
 // Python, e carrega description+value de cada entrada.
 func TestAppContextMatchesThePythonFormat(t *testing.T) {
-	got := AppContextBlock([]types.Context{
+	got := AppContextBlock([]Context{
 		{Description: "A2UI Component Schema", Value: `[{"component":"LineChart"}]`},
 		{Description: "A2UI render tool usage guide", Value: "call generate_a2ui"},
 	})
@@ -279,7 +278,7 @@ func TestAppContextIsEmptyWithoutEntries(t *testing.T) {
 	if got := AppContextBlock(nil); got != "" {
 		t.Fatalf("empty context produced %q", got)
 	}
-	if got := AppContextBlock([]types.Context{}); got != "" {
+	if got := AppContextBlock([]Context{}); got != "" {
 		t.Fatalf("empty context produced %q", got)
 	}
 }

@@ -1,0 +1,1372 @@
+[
+ {
+  "type": "RUN_STARTED",
+  "threadId": "thread_Id_1",
+  "runId": "run_Id_1",
+  "protocolVersion": "1.0"
+ },
+ {
+  "type": "REASONING_START",
+  "messageId": "msg_Id_3"
+ },
+ {
+  "type": "REASONING_MESSAGE_START",
+  "messageId": "msg_Id_3",
+  "role": "reasoning"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": "**Sol"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": "ving"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " the"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " heads"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": "/"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": "legs"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " problem"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": "**\n\nI"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " need"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " to"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " solve"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " the"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " heads"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " and"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " legs"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " problem"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " involving"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " chickens"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " and"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " rabbits"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": "."
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " I've"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " established"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " that"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " the"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " total"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " number"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " of"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " heads"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " is"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " 20"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": ","
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " so"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " I"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " have"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " the"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " equation"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " c"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " +"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " r"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " ="
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " 20"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " and"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " for"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " the"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " legs"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": ","
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " 2"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": "c"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " +"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " 4"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": "r"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " ="
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " 56"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": "."
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " I"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " substitute"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " c"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " as"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " 20"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " -"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " r"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " into"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " the"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " second"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " equation"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " to"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " find"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " r"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " ="
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " 8"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " and"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " then"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " c"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " ="
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " 12"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": "."
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " I"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " could"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " also"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " show"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " the"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " method"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " of"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " calculating"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " the"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " extra"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " legs"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " to"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " verify"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": ","
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " linking"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " legs"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " difference"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " to"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " rabbit"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " numbers"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": "."
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " I'll"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " present"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " the"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " final"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " answer"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " with"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " reasoning"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": " steps"
+ },
+ {
+  "type": "REASONING_MESSAGE_CONTENT",
+  "messageId": "msg_Id_3",
+  "delta": "."
+ },
+ {
+  "type": "REASONING_MESSAGE_END",
+  "messageId": "msg_Id_3"
+ },
+ {
+  "type": "REASONING_END",
+  "messageId": "msg_Id_3"
+ },
+ {
+  "type": "TEXT_MESSAGE_START",
+  "messageId": "msg_Id_1",
+  "role": "assistant"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "Let"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " c"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " number"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " of"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " chickens"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " and"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " r"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " number"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " of"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " rabbits"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": ".\n\n"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "Heads"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": ":"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " c"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " +"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " r"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "20"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "  \n"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "Leg"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "s"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": ":"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "2"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "c"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " +"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "4"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "r"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "56"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "\n\n"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "From"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " the"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " first"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": ","
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " c"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "20"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " −"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " r"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "."
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " Substitute"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " into"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " the"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " legs"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " equation"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": ":\n"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "2"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "("
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "20"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " −"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " r"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": ")"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " +"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "4"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "r"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "56"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "  \n"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "40"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " −"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "2"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "r"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " +"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "4"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "r"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "56"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "  \n"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "40"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " +"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "2"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "r"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "56"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "  \n"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "2"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "r"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "16"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " →"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " r"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "8"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "\n\n"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "Then"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " c"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "20"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " −"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "8"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "12"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": ".\n\n"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "Answer"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": ":"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "12"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " chickens"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " and"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "8"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " rabbits"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": ".\n\n"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "("
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "Quick"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " check"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": ":"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "12"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " heads"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " +"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "8"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " heads"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "20"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": ";"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "12"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "·"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "2"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " +"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "8"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "·"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "4"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "24"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " +"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "32"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " ="
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": "56"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": " legs"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "msg_Id_1",
+  "delta": ".)"
+ },
+ {
+  "type": "TEXT_MESSAGE_END",
+  "messageId": "msg_Id_1"
+ },
+ {
+  "type": "RUN_FINISHED",
+  "threadId": "thread_Id_1",
+  "runId": "run_Id_1",
+  "outcome": {
+   "type": "success"
+  },
+  "usage": [
+   {
+    "model": "gpt-5-mini",
+    "inputTokens": 39,
+    "outputTokens": 345,
+    "totalTokens": 384,
+    "reasoningTokens": 128,
+    "cachedInputTokens": 0
+   }
+  ]
+ }
+]

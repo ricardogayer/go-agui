@@ -1,0 +1,79 @@
+[
+ {
+  "type": "RUN_STARTED",
+  "threadId": "thread_Id_1",
+  "runId": "run_Id_1",
+  "protocolVersion": "1.0"
+ },
+ {
+  "type": "TEXT_MESSAGE_START",
+  "messageId": "chatcmpl-Id_1",
+  "role": "assistant"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "Hello"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "!"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " How"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " can"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " I"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " help"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " you"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": " today"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_1",
+  "delta": "?"
+ },
+ {
+  "type": "TEXT_MESSAGE_END",
+  "messageId": "chatcmpl-Id_1"
+ },
+ {
+  "type": "RUN_FINISHED",
+  "threadId": "thread_Id_1",
+  "runId": "run_Id_1",
+  "outcome": {
+   "type": "success"
+  },
+  "usage": [
+   {
+    "inputTokens": 7,
+    "outputTokens": 83,
+    "totalTokens": 90,
+    "reasoningTokens": 64,
+    "cachedInputTokens": 0
+   }
+  ]
+ }
+]

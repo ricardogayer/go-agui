@@ -1,0 +1,256 @@
+[
+ {
+  "type": "RUN_STARTED",
+  "threadId": "thread_Id_1",
+  "runId": "run_Id_1",
+  "protocolVersion": "1.0"
+ },
+ {
+  "type": "TOOL_CALL_START",
+  "toolCallId": "call_Id_1",
+  "toolCallName": "get_weather",
+  "parentMessageId": ""
+ },
+ {
+  "type": "TOOL_CALL_ARGS",
+  "toolCallId": "call_Id_1",
+  "delta": "{\"city\":\"Paris\"}"
+ },
+ {
+  "type": "TOOL_CALL_END",
+  "toolCallId": "call_Id_1"
+ },
+ {
+  "type": "TOOL_CALL_START",
+  "toolCallId": "call_Id_2",
+  "toolCallName": "get_current_time",
+  "parentMessageId": ""
+ },
+ {
+  "type": "TOOL_CALL_ARGS",
+  "toolCallId": "call_Id_2",
+  "delta": "{\"timezone\":\"Asia/Tokyo\"}"
+ },
+ {
+  "type": "TOOL_CALL_END",
+  "toolCallId": "call_Id_2"
+ },
+ {
+  "type": "TOOL_CALL_RESULT",
+  "messageId": "call_Id_1",
+  "toolCallId": "call_Id_1",
+  "content": "{\n        \"City\": \"Paris\",\n        \"Conditions\": \"sunny\",\n        \"TemperatureCelsius\": 22\n      }"
+ },
+ {
+  "type": "TOOL_CALL_RESULT",
+  "messageId": "call_Id_2",
+  "toolCallId": "call_Id_2",
+  "content": "{\n        \"Timezone\": \"Asia/Tokyo\",\n        \"CurrentTime\": \"2026-06-18 09:30 UTC\"\n      }"
+ },
+ {
+  "type": "TEXT_MESSAGE_START",
+  "messageId": "chatcmpl-Id_2",
+  "role": "assistant"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "-"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " Paris"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": ":"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " sunny"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": ","
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " about"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "22"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "°C"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " ("
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "≈"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "72"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "°F"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": ").\n"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "-"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " Tokyo"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": ":"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "202"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "6"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "-"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "06"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "-"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "18"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " "
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "18"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": ":"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "30"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " ("
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "J"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "ST"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " —"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": " UTC"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "+"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": "9"
+ },
+ {
+  "type": "TEXT_MESSAGE_CONTENT",
+  "messageId": "chatcmpl-Id_2",
+  "delta": ")."
+ },
+ {
+  "type": "TEXT_MESSAGE_END",
+  "messageId": "chatcmpl-Id_2"
+ },
+ {
+  "type": "RUN_FINISHED",
+  "threadId": "thread_Id_1",
+  "runId": "run_Id_1",
+  "outcome": {
+   "type": "success"
+  },
+  "usage": [
+   {
+    "inputTokens": 495,
+    "outputTokens": 488,
+    "totalTokens": 983,
+    "reasoningTokens": 384,
+    "cachedInputTokens": 0
+   }
+  ]
+ }
+]

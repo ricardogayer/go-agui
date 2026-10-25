@@ -117,7 +117,7 @@ func TestStreamingHeadersAreSentBeforeTheFirstEvent(t *testing.T) {
 			return nil
 		}))
 
-	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"threadId":"t","runId":"r"}`))
+	req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"threadId":"t","runId":"r","messages":[]}`))
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, req)
 

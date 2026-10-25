@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/events"
-	"github.com/ag-ui-protocol/ag-ui/sdks/community/go/pkg/core/types"
 	"github.com/cloudwego/eino/schema"
+	"github.com/google/uuid"
+
+	wire "github.com/ricardogayer/go-agui/pkg/agui"
 )
 
 // Conversation is the history of a run in Eino format, preserving the
@@ -19,6 +20,11 @@ import (
 // produced in this run receive the id already announced in the streaming
 // events.
 //
+// Messages from the request are also kept in their original wire form and go
+// back verbatim in the snapshot: multimodal parts, names, metadata and the
+// messages the model never sees (reasoning, a user message made only of an
+// image) survive the reconciliation instead of being erased from the client.
+//
 // A Conversation is per run and is not safe for concurrent use.
 //
 // PT: Conversation é o histórico de um run em formato Eino, preservando o id
@@ -30,10 +36,22 @@ import (
 // requisição mantêm o id que o cliente enviou; mensagens produzidas neste run
 // recebem o id que já foi anunciado nos eventos de streaming.
 //
+// As mensagens da requisição também são guardadas na forma original do fio e
+// voltam como estão no snapshot: partes multimodais, nomes, metadata e as
+// mensagens que o modelo nunca vê (reasoning, uma mensagem de usuário feita só
+// de imagem) sobrevivem à reconciliação em vez de serem apagadas do cliente.
+//
 // Uma Conversation é por run e não é segura para uso concorrente.
 type Conversation struct {
 	msgs []*schema.Message
 	ids  []string
+	wire []wire.Message // original wire form, nil for messages produced here (PT: forma original do fio, nil para mensagens produzidas aqui)
+
+	// hidden holds request messages the model does not see, keyed by the
+	// index of the next model message, so the snapshot keeps their order.
+	// PT: hidden guarda mensagens da requisição que o modelo não vê, pelo
+	// índice da próxima mensagem do modelo, para o snapshot manter a ordem.
+	hidden map[int][]wire.Message
 }
 
 // FromRunInput builds the conversation from the history received in
@@ -51,32 +69,52 @@ type Conversation struct {
 // modelo (ver [Conversation.ModelInput]). É assim que o LangGraph se comporta —
 // `system_prompt` não vira mensagem de estado — e evita vazar o prompt para o
 // frontend pelo MESSAGES_SNAPSHOT.
-func FromRunInput(in []types.Message) *Conversation {
+func FromRunInput(in []Message) *Conversation {
 	c := &Conversation{}
 	for _, m := range in {
-		switch m.Role {
-		case types.RoleUser:
-			if text := messageText(m); text != "" {
-				c.AppendWithID(schema.UserMessage(text), m.ID)
+		var em *schema.Message
+		switch t := m.(type) {
+		case *wire.UserMessage:
+			if text := contentText(t.Content); text != "" {
+				em = schema.UserMessage(text)
 			}
-		case types.RoleSystem, types.RoleDeveloper:
-			if text := messageText(m); text != "" {
-				c.AppendWithID(schema.SystemMessage(text), m.ID)
+		case *wire.SystemMessage:
+			if t.Content != "" {
+				em = schema.SystemMessage(t.Content)
 			}
-		case types.RoleAssistant:
-			content, _ := m.ContentString()
-			c.AppendWithID(&schema.Message{
+		case *wire.DeveloperMessage:
+			if t.Content != "" {
+				em = schema.SystemMessage(t.Content)
+			}
+		case *wire.AssistantMessage:
+			em = &schema.Message{
 				Role:      schema.Assistant,
-				Content:   content,
-				ToolCalls: toEinoToolCalls(m.ToolCalls),
-			}, m.ID)
-		case types.RoleTool:
-			content, _ := m.ContentString()
-			c.AppendWithID(schema.ToolMessage(content, m.ToolCallID), m.ID)
+				Content:   wire.Deref(t.Content),
+				ToolCalls: toEinoToolCalls(t.ToolCalls),
+			}
+		case *wire.ToolMessage:
+			content := contentText(t.Content)
+			if content == "" && t.Error != nil {
+				content = *t.Error
+			}
+			em = schema.ToolMessage(content, t.ToolCallID)
 		}
-		// Roles of no use to the model (reasoning, activity) are ignored.
+		// Roles of no use to the model (reasoning, activity) and messages
+		// without text are kept only for the snapshot.
 		//
-		// PT: Papéis sem uso para o modelo (reasoning, activity) são ignorados.
+		// PT: Papéis sem uso para o modelo (reasoning, activity) e mensagens
+		// sem texto ficam só para o snapshot.
+		if em == nil {
+			if m != nil {
+				if c.hidden == nil {
+					c.hidden = map[int][]wire.Message{}
+				}
+				c.hidden[len(c.msgs)] = append(c.hidden[len(c.msgs)], m)
+			}
+			continue
+		}
+		c.AppendWithID(em, m.MessageID())
+		c.wire[len(c.wire)-1] = m
 	}
 	return c
 }
@@ -98,6 +136,7 @@ func (c *Conversation) Append(m *schema.Message) { c.AppendWithID(m, "") }
 func (c *Conversation) AppendWithID(m *schema.Message, id string) {
 	c.msgs = append(c.msgs, m)
 	c.ids = append(c.ids, id)
+	c.wire = append(c.wire, nil)
 }
 
 // Len returns the number of messages in the conversation.
@@ -209,11 +248,11 @@ func AppContextBlock(entries []Context) string {
 	}
 	b, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
-		// Context is a struct of two strings: it would only fail if the SDK
+		// Context is a struct of two strings: it would only fail if the data model
 		// changed shape. Losing the context degrades the answer, but does not
 		// justify bringing down the run.
 		//
-		// PT: Context é struct de duas strings: só falharia se o SDK mudasse de
+		// PT: Context é struct de duas strings: só falharia se o modelo de dados mudasse de
 		// forma. Perder o contexto degrada a resposta, mas não justifica
 		// derrubar o run.
 		return ""
@@ -386,74 +425,75 @@ func toolPairsOK(msgs []*schema.Message) bool {
 }
 
 // Snapshot converts the conversation to AG-UI messages, ready for the
-// MESSAGES_SNAPSHOT, honoring the SDK's per-role validation rules.
+// MESSAGES_SNAPSHOT. Messages from the request go back in their original wire
+// form; messages produced in this run are converted from Eino.
 //
 // PT: Snapshot converte a conversa para mensagens AG-UI, prontas para o
-// MESSAGES_SNAPSHOT, respeitando as regras de validação por papel do SDK.
-func (c *Conversation) Snapshot() []types.Message {
-	out := make([]types.Message, 0, len(c.msgs))
+// MESSAGES_SNAPSHOT. Mensagens da requisição voltam na forma original do fio;
+// mensagens produzidas neste run são convertidas do Eino.
+func (c *Conversation) Snapshot() []Message {
+	out := make([]Message, 0, len(c.msgs))
 	for i, m := range c.msgs {
-		id := c.ids[i]
-		if id == "" {
-			id = events.GenerateMessageID()
-			c.ids[i] = id // stable across snapshots of the same run (PT: estável entre snapshots do mesmo run)
-		}
-		am := types.Message{ID: id, Content: m.Content}
-		switch m.Role {
-		case schema.System:
-			am.Role = types.RoleSystem
-		case schema.User:
-			am.Role = types.RoleUser
-		case schema.Assistant:
-			am.Role = types.RoleAssistant
-			am.ToolCalls = toAGUIToolCalls(m.ToolCalls)
-		case schema.Tool:
-			am.Role = types.RoleTool
-			am.ToolCallID = m.ToolCallID
-		default:
+		out = append(out, c.hidden[i]...)
+		if c.wire[i] != nil {
+			out = append(out, c.wire[i])
 			continue
 		}
-		out = append(out, am)
+		id := c.ids[i]
+		if id == "" {
+			id = uuid.NewString()
+			c.ids[i] = id // stable across snapshots of the same run (PT: estável entre snapshots do mesmo run)
+		}
+		switch m.Role {
+		case schema.System:
+			out = append(out, &wire.SystemMessage{ID: id, Content: m.Content})
+		case schema.User:
+			out = append(out, &wire.UserMessage{ID: id, Content: wire.TextContent(m.Content)})
+		case schema.Assistant:
+			am := &wire.AssistantMessage{ID: id, ToolCalls: toAGUIToolCalls(m.ToolCalls)}
+			if m.Content != "" {
+				am.Content = &m.Content
+			}
+			out = append(out, am)
+		case schema.Tool:
+			out = append(out, &wire.ToolMessage{
+				ID: id, Content: wire.TextContent(m.Content), ToolCallID: m.ToolCallID,
+			})
+		}
 	}
-	return out
+	return append(out, c.hidden[len(c.msgs)]...)
 }
 
-// messageText extracts the text of an AG-UI message.
+// contentText extracts the text of user/tool content. With multimodal parts,
+// the text parts are joined with a newline. Non-text parts (image, audio,
+// video, document) are dropped — this version has no multimodal path to the
+// model, which AG-UI 1.0 allows as long as the run does not fail because of
+// it — but the text the user typed is preserved
+// instead of the whole turn silently vanishing.
 //
-// ContentString covers plain string content; for structured content
-// ([]InputContent) it returns ok=false, and then we join the text fragments.
-// Non-text fragments (image/audio/binary) are discarded — this version has no
-// multimodal path —, but the text typed by the user is preserved instead of
-// the whole turn silently vanishing.
-//
-// PT: messageText extrai o texto de uma mensagem AG-UI.
-//
-// ContentString cobre o conteúdo string simples; para conteúdo estruturado
-// ([]InputContent) ele devolve ok=false, e então juntamos os fragmentos de
-// texto. Fragmentos não-texto (imagem/áudio/binário) são descartados — esta
-// versão não tem caminho multimodal —, mas o texto digitado pelo usuário é
-// preservado em vez de o turno inteiro sumir em silêncio.
-func messageText(m types.Message) string {
-	if s, ok := m.ContentString(); ok {
-		return s
-	}
-	parts, ok := m.ContentInputContents()
-	if !ok {
-		return ""
+// PT: contentText extrai o texto de um conteúdo de usuário/tool. Com partes
+// multimodais, as partes de texto são unidas por quebra de linha. Partes
+// não-texto (imagem, áudio, vídeo, documento) são descartadas — esta versão
+// não tem caminho multimodal até o modelo, o que o AG-UI 1.0 permite —, mas o
+// texto digitado pelo usuário é preservado em vez de o turno inteiro sumir em
+// silêncio.
+func contentText(c Content) string {
+	if !c.IsParts() {
+		return c.String()
 	}
 	var b strings.Builder
-	for _, p := range parts {
-		if p.Type == types.InputContentTypeText && p.Text != "" {
+	for _, p := range c.Parts() {
+		if t, ok := p.(*wire.TextPart); ok && t.Text != "" {
 			if b.Len() > 0 {
 				b.WriteByte('\n')
 			}
-			b.WriteString(p.Text)
+			b.WriteString(t.Text)
 		}
 	}
 	return b.String()
 }
 
-func toEinoToolCalls(tcs []types.ToolCall) []schema.ToolCall {
+func toEinoToolCalls(tcs []ToolCall) []schema.ToolCall {
 	if len(tcs) == 0 {
 		return nil
 	}
@@ -468,17 +508,13 @@ func toEinoToolCalls(tcs []types.ToolCall) []schema.ToolCall {
 	return out
 }
 
-func toAGUIToolCalls(tcs []schema.ToolCall) []types.ToolCall {
+func toAGUIToolCalls(tcs []schema.ToolCall) []ToolCall {
 	if len(tcs) == 0 {
 		return nil
 	}
-	out := make([]types.ToolCall, 0, len(tcs))
+	out := make([]ToolCall, 0, len(tcs))
 	for _, tc := range tcs {
-		out = append(out, types.ToolCall{
-			ID:       tc.ID,
-			Type:     types.ToolCallTypeFunction,
-			Function: types.FunctionCall{Name: tc.Function.Name, Arguments: tc.Function.Arguments},
-		})
+		out = append(out, wire.NewToolCall(tc.ID, tc.Function.Name, tc.Function.Arguments))
 	}
 	return out
 }
